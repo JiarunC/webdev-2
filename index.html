@@ -3,31 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CueTier // Video Game Score Tier List Editor</title>
+  <title>Strata // Game &amp; Movie Tier List Editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Alice&family=Nunito:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="ide-topbar">
     <div class="ide-brand">
-      <span class="ide-app-name">CueTier</span>
+      <span class="ide-app-name">Strata</span>
       <span class="ide-divider" aria-hidden="true">|</span>
-      <span class="ide-subtitle">Game Cue &amp; Soundtrack Tier Editor</span>
+      <span class="ide-subtitle">Game &amp; Movie Tier List Editor</span>
     </div>
 
     <nav class="ide-menubar" aria-label="Workspace actions">
-      <button type="button" id="orientation-switch" class="ide-btn" aria-pressed="false" title="Toggle vertical or horizontal tier layout">
-        Orientation: <strong id="orientation-label">Vertical</strong>
+      <button type="button" id="mode-switch" class="ide-btn ide-btn-accent" aria-pressed="false" title="Switch between Games and Movies mode">
+        Mode: <strong id="mode-label">Games</strong>
+      </button>
+
+      <button type="button" id="orientation-switch" class="ide-btn" aria-pressed="false" title="Toggle horizontal or vertical tier layout">
+        Orientation: <strong id="orientation-label">Horizontal</strong>
       </button>
 
       <button type="button" id="theme-switch" class="ide-btn" aria-pressed="false" title="Switch between Dark and Light mode">
         Theme: <strong id="theme-label">Dark</strong>
       </button>
 
-      <button type="button" id="add-row-btn" class="ide-btn ide-btn-accent">
-        + Add Row
+      <button type="button" id="add-tier-btn" class="ide-btn ide-btn-accent">
+        + Add Tier
       </button>
 
       <form id="save-tierlist-form" class="save-inline-form">
@@ -47,86 +52,121 @@
   </header>
 
   <section class="ide-toolstrip" aria-label="Catalog acquisition tools">
-    <section class="tool-window" aria-labelledby="igdb-panel-heading">
-      <h2 id="igdb-panel-heading" class="tool-heading">IGDB Game Search</h2>
-      <form id="igdb-search-form" class="tool-form" novalidate>
-        <label for="igdb-query-input" class="sr-only">Game title query</label>
-        <input
-          type="search"
-          id="igdb-query-input"
-          class="ide-input"
-          placeholder="Search game title via IGDB (e.g. Hollow Knight, NieR, Celeste)..."
-          autocomplete="off"
-          required
-        >
-        <button type="submit" id="igdb-search-btn" class="ide-btn ide-btn-accent">
+    <section id="game-tool-window" class="tool-window" aria-labelledby="game-panel-heading">
+      <h2 id="game-panel-heading" class="tool-heading">CheapShark Game Search</h2>
+      <form id="game-search-form" class="tool-form" novalidate>
+        <label for="game-query-input" class="sr-only">Game title query</label>
+        <div class="search-field-wrap">
+          <input
+            type="search"
+            id="game-query-input"
+            class="ide-input search-field-input"
+            placeholder="Search game title via CheapShark (e.g. Hollow Knight, NieR, Celeste)..."
+            autocomplete="off"
+            required
+          >
+          <button
+            type="button"
+            id="clear-game-query-btn"
+            class="search-clear-btn"
+            aria-label="Clear game search query"
+            title="Clear search"
+            hidden
+          >
+            <span class="material-symbols-outlined search-clear-icon" aria-hidden="true">close_small</span>
+          </button>
+        </div>
+        <button type="submit" id="game-search-btn" class="ide-btn ide-btn-accent">
           Search
         </button>
+        <button type="button" id="load-game-defaults-btn" class="ide-btn" title="Populate candidate pool with 24 default games">
+          Load Defaults
+        </button>
       </form>
-      <p id="igdb-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
+      <p id="game-search-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
 
-      <section id="igdb-matches-panel" class="matches-drawer" aria-labelledby="matches-heading" hidden>
+      <section id="game-matches-panel" class="matches-drawer" aria-labelledby="game-matches-heading" hidden>
         <header class="matches-header">
-          <h3 id="matches-heading" class="matches-title">Search Matches (<span id="matches-count">0</span>)</h3>
+          <h3 id="game-matches-heading" class="matches-title">Search Matches (<span id="game-matches-count">0</span>)</h3>
           <div class="matches-actions">
-            <button type="button" id="confirm-selected-matches-btn" class="ide-btn ide-btn-primary">
-              Add Selected (<span id="selected-matches-count">0</span>)
-            </button>
-            <button type="button" id="close-matches-btn" class="ide-btn">
+            <button type="button" id="close-game-matches-btn" class="ide-btn">
               Close
             </button>
           </div>
         </header>
-        <ul id="igdb-matches-list" class="matches-list" aria-label="IGDB game matches"></ul>
+        <ul id="game-matches-list" class="matches-list" aria-label="Game search matches"></ul>
       </section>
     </section>
 
-    <section class="tool-window" aria-labelledby="steam-panel-heading">
-      <h2 id="steam-panel-heading" class="tool-heading">Steam Library Import</h2>
-      <form id="steam-import-form" class="tool-form" novalidate>
-        <label for="steam-link-input" class="sr-only">Steam Community profile URL</label>
-        <input
-          type="url"
-          id="steam-link-input"
-          class="ide-input"
-          placeholder="https://steamcommunity.com/id/composer or /profiles/76561198..."
-          autocomplete="off"
-          required
-        >
-        <button type="submit" id="steam-import-btn" class="ide-btn ide-btn-accent">
-          Pull Library
+    <section id="movie-tool-window" class="tool-window" aria-labelledby="movie-panel-heading" hidden>
+      <h2 id="movie-panel-heading" class="tool-heading">TMDB Movie Search</h2>
+      <form id="movie-search-form" class="tool-form" novalidate>
+        <label for="movie-query-input" class="sr-only">Movie title query</label>
+        <div class="search-field-wrap">
+          <input
+            type="search"
+            id="movie-query-input"
+            class="ide-input search-field-input"
+            placeholder="Search movie title via TMDB (e.g. Interstellar, Spirited Away, Dune)..."
+            autocomplete="off"
+            required
+          >
+          <button
+            type="button"
+            id="clear-movie-query-btn"
+            class="search-clear-btn"
+            aria-label="Clear movie search query"
+            title="Clear search"
+            hidden
+          >
+            <span class="material-symbols-outlined search-clear-icon" aria-hidden="true">close_small</span>
+          </button>
+        </div>
+        <button type="submit" id="movie-search-btn" class="ide-btn ide-btn-accent">
+          Search
         </button>
-        <button type="button" id="load-defaults-btn" class="ide-btn" title="Populate candidate pool with default composer reference games">
+        <button type="button" id="load-movie-defaults-btn" class="ide-btn" title="Fetch 24 random popular movies from TMDB into Candidates">
           Load Defaults
         </button>
       </form>
-      <p id="steam-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
+      <p id="movie-search-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
+
+      <section id="movie-matches-panel" class="matches-drawer" aria-labelledby="movie-matches-heading" hidden>
+        <header class="matches-header">
+          <h3 id="movie-matches-heading" class="matches-title">Search Matches (<span id="movie-matches-count">0</span>)</h3>
+          <div class="matches-actions">
+            <button type="button" id="close-movie-matches-btn" class="ide-btn">
+              Close
+            </button>
+          </div>
+        </header>
+        <ul id="movie-matches-list" class="matches-list" aria-label="Movie search matches"></ul>
+      </section>
     </section>
   </section>
 
-  <main id="workspace-main" class="ide-workspace" data-orientation="vertical">
+  <main id="workspace-main" class="ide-workspace" data-mode="games" data-orientation="horizontal">
     <header class="document-header">
       <div class="document-title-group">
-        <h1 id="sr-document-heading" class="sr-only">Video Game Score Tier List</h1>
-        <label for="tierlist-title" class="document-tab-tag">list_title:</label>
+        <h1 id="sr-document-heading" class="sr-only">Video Game Tier List</h1>
         <input
           type="text"
           id="tierlist-title"
           class="tierlist-title-input"
-          value="Video Game Score Tier List"
+          value="Video Game Tier List"
           maxlength="120"
           aria-label="Editable tier list title"
           spellcheck="false"
         >
       </div>
-      <p class="document-hint">
-        Drag game posters between tiers and the candidate pool. Click Edit on any row to change name, color, or icon.
+      <p id="document-hint" class="document-hint">
+        Drag and drop posters into tiers or back to the candidate pool.
       </p>
     </header>
 
     <div id="board-split" class="board-split">
       <section class="tiers-region" aria-label="Tier list">
-        <ol id="tier-rows-list" class="tier-rows-list"></ol>
+        <ol id="tiers-list" class="tiers-list"></ol>
       </section>
 
       <aside id="candidates-region" class="candidates-region" aria-labelledby="candidates-heading">
@@ -136,13 +176,25 @@
           </h2>
           <div class="candidates-toolbar">
             <label for="candidates-filter-input" class="sr-only">Filter candidates by title</label>
-            <input
-              type="search"
-              id="candidates-filter-input"
-              class="ide-input ide-input-compact"
-              placeholder="Filter candidates..."
-              autocomplete="off"
-            >
+            <div class="search-field-wrap search-field-wrap-compact">
+              <input
+                type="search"
+                id="candidates-filter-input"
+                class="ide-input ide-input-compact search-field-input"
+                placeholder="Filter candidates..."
+                autocomplete="off"
+              >
+              <button
+                type="button"
+                id="clear-candidates-filter-btn"
+                class="search-clear-btn search-clear-btn-compact"
+                aria-label="Clear candidate filter"
+                title="Clear filter"
+                hidden
+              >
+                <span class="material-symbols-outlined search-clear-icon" aria-hidden="true">close_small</span>
+              </button>
+            </div>
             <button type="button" id="clear-candidates-btn" class="ide-btn ide-btn-compact" title="Remove all unranked candidates">
               Clear
             </button>
@@ -150,79 +202,80 @@
         </header>
 
         <div id="candidates-dropzone" class="candidates-dropzone" data-drop-zone="candidates">
-          <ul id="candidates-list" class="poster-collection" aria-label="Candidate game posters"></ul>
+          <ul id="candidates-list" class="poster-collection" aria-label="Candidate posters"></ul>
           <p id="candidates-empty-msg" class="empty-state-msg">
-            Candidate pool is empty. Search titles via IGDB, import a Steam Community profile, or click Load Defaults.
+            Game candidate pool is empty. Search titles via CheapShark or click Load Defaults.
           </p>
         </div>
       </aside>
     </div>
   </main>
 
-  <dialog id="row-editor-dialog" class="ide-modal" aria-labelledby="row-modal-title">
-    <form id="row-editor-form" class="modal-form" method="dialog">
+  <dialog id="tier-editor-dialog" class="ide-modal" aria-labelledby="tier-modal-title">
+    <form id="tier-editor-form" class="modal-form" method="dialog">
       <header class="modal-header">
-        <h2 id="row-modal-title" class="modal-title">Edit Tier Row</h2>
-        <button type="button" id="close-row-modal-btn" class="ide-btn ide-btn-compact">Close [Esc]</button>
+        <h2 id="tier-modal-title" class="modal-title">Edit Tier</h2>
+        <button type="button" id="close-tier-modal-btn" class="ide-btn ide-btn-compact">Close [Esc]</button>
       </header>
 
       <div class="modal-body">
-        <div class="form-row">
-          <label for="row-name-input" class="form-label">Row Name</label>
+        <div class="form-field">
+          <label for="tier-name-input" class="form-label">Tier Name</label>
           <input
             type="text"
-            id="row-name-input"
+            id="tier-name-input"
             class="ide-input"
             maxlength="40"
             required
-            placeholder="e.g. A, Leitmotif Mastery, Ambient..."
+            placeholder="e.g. S, Favorites, Backlog..."
           >
         </div>
 
         <fieldset class="form-fieldset">
-          <legend class="form-label">Row Matte Color</legend>
+          <legend class="form-label">Tier Matte Color</legend>
           <div class="color-picker-group">
-            <label for="row-color-input" class="color-hex-label">Custom Hex:</label>
-            <input type="color" id="row-color-input" class="ide-color-input" value="#b8644f">
-            <span id="row-color-hex" class="mono-readout">#b8644f</span>
+            <label for="tier-color-input" class="color-hex-label">Custom Hex:</label>
+            <input type="color" id="tier-color-input" class="ide-color-input" value="#b8644f">
+            <span id="tier-color-hex" class="mono-readout">#b8644f</span>
           </div>
           <div id="matte-swatches" class="swatch-grid" role="group" aria-label="Preset matte colors"></div>
         </fieldset>
 
         <fieldset class="form-fieldset">
-          <legend class="form-label">Row Icon (Optional)</legend>
-          <div class="form-row">
-            <label for="row-icon-preset" class="sub-label">Preset Placeholder Slot</label>
-            <select id="row-icon-preset" class="ide-select"></select>
+          <legend class="form-label">Tier Icon (Optional)</legend>
+          <div class="form-field">
+            <label for="tier-icon-preset" class="sub-label">Default Icon</label>
+            <select id="tier-icon-preset" class="ide-select"></select>
           </div>
 
-          <div class="form-row">
-            <label for="row-icon-url" class="sub-label">Or Custom Icon URL / Path</label>
+          <div class="form-field">
+            <label for="tier-icon-url" class="sub-label">Or Custom Icon URL</label>
             <input
               type="text"
-              id="row-icon-url"
+              id="tier-icon-url"
               class="ide-input"
-              placeholder="placeholders/icon-score.png or https://..."
+              placeholder="https://example.com/icon.png"
             >
           </div>
 
-          <div class="form-row">
-            <label for="row-icon-file" class="sub-label">Or Local Image File</label>
-            <input type="file" id="row-icon-file" class="ide-file-input" accept="image/*">
+          <div class="form-field">
+            <label for="tier-icon-file" class="sub-label">Or Local Image File</label>
+            <input type="file" id="tier-icon-file" class="ide-file-input" accept="image/*">
           </div>
 
           <div class="icon-preview-bar">
             <span class="sub-label">Preview:</span>
-            <img id="row-icon-preview" class="row-icon-preview-img" src="" alt="Selected row icon preview" hidden>
-            <span id="row-icon-none" class="muted-note">No icon assigned</span>
-            <button type="button" id="clear-row-icon-btn" class="ide-btn ide-btn-compact">Clear Icon</button>
+            <span id="tier-icon-preview-symbol" class="material-symbols-outlined tier-icon-preview-symbol" role="img" aria-label="Selected tier icon preview" hidden></span>
+            <img id="tier-icon-preview" class="tier-icon-preview-img" src="placeholder.png" alt="Selected tier icon preview" hidden>
+            <span id="tier-icon-none" class="muted-note">No icon assigned</span>
+            <button type="button" id="clear-tier-icon-btn" class="ide-btn ide-btn-compact">Clear Icon</button>
           </div>
         </fieldset>
       </div>
 
       <footer class="modal-footer">
-        <button type="button" id="cancel-row-modal-btn" class="ide-btn">Cancel</button>
-        <button type="submit" id="save-row-modal-btn" class="ide-btn ide-btn-primary">Apply Row Settings</button>
+        <button type="button" id="cancel-tier-modal-btn" class="ide-btn">Cancel</button>
+        <button type="submit" id="save-tier-modal-btn" class="ide-btn ide-btn-primary">Apply Tier Settings</button>
       </footer>
     </form>
   </dialog>
@@ -236,7 +289,7 @@
 
       <div class="modal-body">
         <form id="save-copy-form" class="save-copy-bar">
-          <label for="save-as-name-input" class="sub-label">Save current workspace as new slot:</label>
+          <label for="save-as-name-input" class="sub-label">Save current workspace as a new slot:</label>
           <div class="tool-form">
             <input
               type="text"
@@ -269,11 +322,11 @@
       <span id="status-message">Ready // Default A-F template initialized</span>
     </div>
     <div class="status-segment status-metrics">
-      <span>Layout: <strong id="status-orientation">VERTICAL</strong></span>
+      <span>Mode: <strong id="status-mode">GAMES</strong></span>
+      <span>Layout: <strong id="status-orientation">HORIZONTAL</strong></span>
       <span>Tiers: <strong id="status-tier-count">6</strong></span>
       <span>Ranked: <strong id="status-ranked-count">0</strong></span>
       <span>Candidates: <strong id="status-candidate-count">0</strong></span>
-      <span id="status-api-keys">API: Placeholders</span>
     </div>
   </footer>
 

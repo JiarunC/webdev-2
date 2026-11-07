@@ -1,43 +1,29 @@
 "use strict";
 
 /* ==========================================================================
-   1. API & PLACEHOLDER ASSET CONFIGURATION
-   Replace the placeholder strings below with your own credentials and assets.
+   1. API & TIER ICON CONFIGURATION
    ========================================================================== */
 const API_CONFIG = {
-  // IGDB v4 (Twitch Developer Portal Client ID & Client Secret)
-  IGDB_CLIENT_ID: "PLACEHOLDER_IGDB_CLIENT_ID",
-  IGDB_CLIENT_SECRET: "PLACEHOLDER_IGDB_CLIENT_SECRET",
-  // Optional: If you already have an OAuth Bearer token, paste it here; otherwise leave ""
-  IGDB_ACCESS_TOKEN: "",
-
-  // Steam Web API Key (https://steamcommunity.com/dev/apikey)
-  STEAM_API_KEY: "PLACEHOLDER_STEAM_API_KEY",
-
-  // Optional static-site CORS proxy fallback.
-  // Direct fetch() is always tried first; if the browser blocks cross-origin headers,
-  // requests automatically retry using this prefix when non-empty.
-  CORS_PROXY: "https://corsproxy.io/?url="
+  CHEAPSHARK_GAMES_ENDPOINT: "https://www.cheapshark.com/api/1.0/games",
+  CHEAPSHARK_DEALS_ENDPOINT: "https://www.cheapshark.com/api/1.0/deals",
+  TMDB_BASE_URL: "https://api.themoviedb.org/3",
+  TMDB_IMAGE_BASE: "https://image.tmdb.org/t/p/w342",
+  TMDB_IMAGE_BACKUP_BASE: "https://image.tmdb.org/t/p/w500",
+  TMDB_API_KEY: "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIwNzJhMDI0MDEwMThkZDVhOTUzNjIxNThkMDJjMTYzNCIsIm5iZiI6MTc4MjkxNDgxMy4wNDksInN1YiI6IjZhNDUxZWZkNDRjODA0ZmVjNzQxN2RhOCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OPWxCi4EY5aoShdDKDVxqBQIxfall46ofyesKH8gadw"
 };
 
-const ICON_PLACEHOLDERS = {
-  // Placeholder image path used when a game record has no cover artwork
-  FALLBACK_POSTER: "placeholders/default-game-poster.png",
-
-  // Optional preset icons selectable when editing any tier row
-  TIER_PRESETS: [
-    { id: "none", label: "None (Text Label Only)", src: "", alt: "" },
-    { id: "score", label: "Full Conductor Score [Placeholder]", src: "placeholders/icon-score.png", alt: "Conductor score icon" },
-    { id: "leitmotif", label: "Leitmotif Theme [Placeholder]", src: "placeholders/icon-leitmotif.png", alt: "Leitmotif icon" },
-    { id: "adaptive", label: "Adaptive Cue Matrix [Placeholder]", src: "placeholders/icon-adaptive.png", alt: "Adaptive cue icon" },
-    { id: "orchestra", label: "Orchestral Ensemble [Placeholder]", src: "placeholders/icon-orchestra.png", alt: "Orchestral ensemble icon" },
-    { id: "synth", label: "Modular Synthesizer [Placeholder]", src: "placeholders/icon-synth.png", alt: "Modular synthesizer icon" },
-    { id: "ambient", label: "Ambient Soundscape [Placeholder]", src: "placeholders/icon-ambient.png", alt: "Ambient soundscape icon" }
-  ]
-};
+const TIER_ICON_PRESETS = [
+  { id: "none", label: "None", value: "", symbol: "", alt: "" },
+  { id: "favorite", label: "Favorite", value: "symbol:favorite", symbol: "favorite", alt: "Favorite icon" },
+  { id: "star", label: "Star", value: "symbol:star", symbol: "star", alt: "Star icon" },
+  { id: "neutral", label: "Neutral", value: "symbol:sentiment_neutral", symbol: "sentiment_neutral", alt: "Neutral icon" },
+  { id: "half-star", label: "Half Star", value: "symbol:star_half", symbol: "star_half", alt: "Half Star icon" },
+  { id: "bin", label: "Bin", value: "symbol:delete", symbol: "delete", alt: "Bin icon" },
+  { id: "chore", label: "Chore", value: "symbol:mop", symbol: "mop", alt: "Chore icon" }
+];
 
 /* ==========================================================================
-   2. MATTE PALETTE, DEFAULT A-F TEMPLATE & DEFAULT COMPOSER GAME CATALOG
+   2. MATTE PALETTE, DEFAULT A-F TEMPLATE & DEFAULT GAME CATALOG
    ========================================================================== */
 const MATTE_SWATCHES = [
   "#b8644f",
@@ -63,16 +49,15 @@ function createDefaultTiers() {
   ];
 }
 
-function steamPosterUrls(appId) {
+function gameCoverUrls(appId) {
   return {
     primary: "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/" + appId + "/library_600x900.jpg",
     secondary: "https://cdn.cloudflare.steamstatic.com/steam/apps/" + appId + "/header.jpg"
   };
 }
 
-// Default reference games (renowned game scores) used as fallback for private Steam profiles
-// and offline testing prior to adding IGDB / Steam API keys.
-const DEFAULT_COMPOSER_CATALOG = [
+// 24 default reference video games populated when clicking Load Defaults in Games mode.
+const DEFAULT_GAME_CATALOG = [
   { appId: 367520, name: "Hollow Knight", year: "2017" },
   { appId: 504230, name: "Celeste", year: "2018" },
   { appId: 524220, name: "NieR:Automata", year: "2017" },
@@ -98,43 +83,64 @@ const DEFAULT_COMPOSER_CATALOG = [
   { appId: 264710, name: "Subnautica", year: "2018" },
   { appId: 1245620, name: "ELDEN RING", year: "2022" }
 ].map(function mapCatalogEntry(entry) {
-  const urls = steamPosterUrls(entry.appId);
+  const urls = gameCoverUrls(entry.appId);
   return {
-    id: "steam-" + entry.appId,
+    id: "game-" + entry.appId,
+    mediaType: "game",
     name: entry.name,
     year: entry.year,
+    releaseDate: entry.year,
     imageUrl: urls.primary,
     backupUrl: urls.secondary,
-    source: "default"
+    source: "default-game"
   };
 });
 
 /* ==========================================================================
-   3. APPLICATION STATE & STORAGE KEYS
+   3. APPLICATION STATE & ISOLATED WORKSPACES (GAMES VS. MOVIES)
    ========================================================================== */
 const STORAGE_KEYS = {
-  SAVED_LISTS: "cuetier_saved_tierlists_v1",
-  THEME: "cuetier_theme_mode_v1"
+  SAVED_LISTS: "strata_saved_tierlists_v1",
+  THEME: "strata_theme_mode_v1"
 };
 
+function defaultTitleForMode(mode) {
+  return mode === "movies" ? "Movie Tier List" : "Video Game Tier List";
+}
+
+function expectedMediaTypeForMode(mode) {
+  return mode === "movies" ? "movie" : "game";
+}
+
+function createWorkspaceState(mode) {
+  return {
+    mediaMode: mode,
+    activeSlotId: null,
+    lastSavedTitle: null,
+    title: defaultTitleForMode(mode),
+    orientation: "horizontal",
+    tiers: createDefaultTiers(),
+    candidates: [],
+    candidateFilter: "",
+    searchMatches: []
+  };
+}
+
 const state = {
-  activeSlotId: null,
-  lastSavedTitle: null,
-  title: "Video Game Score Tier List",
-  orientation: "vertical",
+  mode: "games",
   theme: "dark",
-  tiers: createDefaultTiers(),
-  candidates: [],
-  candidateFilter: "",
-  searchMatches: [],
-  selectedMatchIds: new Set(),
-  editingRowId: null,
-  isCreatingRow: false,
-  igdbTokenCache: {
-    token: "",
-    expiresAt: 0
-  }
+  workspaces: {
+    games: createWorkspaceState("games"),
+    movies: createWorkspaceState("movies")
+  },
+  editingTierId: null,
+  isCreatingTier: false,
+  modalIconValue: ""
 };
+
+function getActiveWorkspace() {
+  return state.workspaces[state.mode];
+}
 
 let dragContext = null;
 
@@ -146,59 +152,71 @@ const dom = {};
 function cacheDom() {
   dom.html = document.documentElement;
   dom.workspaceMain = document.getElementById("workspace-main");
+  dom.modeSwitch = document.getElementById("mode-switch");
+  dom.modeLabel = document.getElementById("mode-label");
   dom.orientationSwitch = document.getElementById("orientation-switch");
   dom.orientationLabel = document.getElementById("orientation-label");
   dom.themeSwitch = document.getElementById("theme-switch");
   dom.themeLabel = document.getElementById("theme-label");
-  dom.addRowBtn = document.getElementById("add-row-btn");
+  dom.addTierBtn = document.getElementById("add-tier-btn");
   dom.saveTierlistForm = document.getElementById("save-tierlist-form");
   dom.openStorageBtn = document.getElementById("open-storage-btn");
   dom.savedCount = document.getElementById("saved-count");
   dom.newTemplateBtn = document.getElementById("new-template-btn");
 
-  dom.igdbSearchForm = document.getElementById("igdb-search-form");
-  dom.igdbQueryInput = document.getElementById("igdb-query-input");
-  dom.igdbSearchBtn = document.getElementById("igdb-search-btn");
-  dom.igdbFeedback = document.getElementById("igdb-feedback");
-  dom.igdbMatchesPanel = document.getElementById("igdb-matches-panel");
-  dom.matchesCount = document.getElementById("matches-count");
-  dom.selectedMatchesCount = document.getElementById("selected-matches-count");
-  dom.confirmSelectedMatchesBtn = document.getElementById("confirm-selected-matches-btn");
-  dom.closeMatchesBtn = document.getElementById("close-matches-btn");
-  dom.igdbMatchesList = document.getElementById("igdb-matches-list");
+  dom.gameToolWindow = document.getElementById("game-tool-window");
+  dom.gameSearchForm = document.getElementById("game-search-form");
+  dom.gameQueryInput = document.getElementById("game-query-input");
+  dom.clearGameQueryBtn = document.getElementById("clear-game-query-btn");
+  dom.gameSearchBtn = document.getElementById("game-search-btn");
+  dom.loadGameDefaultsBtn = document.getElementById("load-game-defaults-btn");
+  dom.gameSearchFeedback = document.getElementById("game-search-feedback");
+  dom.gameMatchesPanel = document.getElementById("game-matches-panel");
+  dom.gameMatchesCount = document.getElementById("game-matches-count");
+  dom.closeGameMatchesBtn = document.getElementById("close-game-matches-btn");
+  dom.gameMatchesList = document.getElementById("game-matches-list");
 
-  dom.steamImportForm = document.getElementById("steam-import-form");
-  dom.steamLinkInput = document.getElementById("steam-link-input");
-  dom.steamImportBtn = document.getElementById("steam-import-btn");
-  dom.loadDefaultsBtn = document.getElementById("load-defaults-btn");
-  dom.steamFeedback = document.getElementById("steam-feedback");
+  dom.movieToolWindow = document.getElementById("movie-tool-window");
+  dom.movieSearchForm = document.getElementById("movie-search-form");
+  dom.movieQueryInput = document.getElementById("movie-query-input");
+  dom.clearMovieQueryBtn = document.getElementById("clear-movie-query-btn");
+  dom.movieSearchBtn = document.getElementById("movie-search-btn");
+  dom.loadMovieDefaultsBtn = document.getElementById("load-movie-defaults-btn");
+  dom.movieSearchFeedback = document.getElementById("movie-search-feedback");
+  dom.movieMatchesPanel = document.getElementById("movie-matches-panel");
+  dom.movieMatchesCount = document.getElementById("movie-matches-count");
+  dom.closeMovieMatchesBtn = document.getElementById("close-movie-matches-btn");
+  dom.movieMatchesList = document.getElementById("movie-matches-list");
 
   dom.srDocumentHeading = document.getElementById("sr-document-heading");
   dom.tierlistTitle = document.getElementById("tierlist-title");
-  dom.tierRowsList = document.getElementById("tier-rows-list");
+  dom.documentHint = document.getElementById("document-hint");
+  dom.tiersList = document.getElementById("tiers-list");
 
   dom.candidatesCount = document.getElementById("candidates-count");
   dom.candidatesFilterInput = document.getElementById("candidates-filter-input");
+  dom.clearCandidatesFilterBtn = document.getElementById("clear-candidates-filter-btn");
   dom.clearCandidatesBtn = document.getElementById("clear-candidates-btn");
   dom.candidatesDropzone = document.getElementById("candidates-dropzone");
   dom.candidatesList = document.getElementById("candidates-list");
   dom.candidatesEmptyMsg = document.getElementById("candidates-empty-msg");
 
-  dom.rowEditorDialog = document.getElementById("row-editor-dialog");
-  dom.rowEditorForm = document.getElementById("row-editor-form");
-  dom.rowModalTitle = document.getElementById("row-modal-title");
-  dom.closeRowModalBtn = document.getElementById("close-row-modal-btn");
-  dom.cancelRowModalBtn = document.getElementById("cancel-row-modal-btn");
-  dom.rowNameInput = document.getElementById("row-name-input");
-  dom.rowColorInput = document.getElementById("row-color-input");
-  dom.rowColorHex = document.getElementById("row-color-hex");
+  dom.tierEditorDialog = document.getElementById("tier-editor-dialog");
+  dom.tierEditorForm = document.getElementById("tier-editor-form");
+  dom.tierModalTitle = document.getElementById("tier-modal-title");
+  dom.closeTierModalBtn = document.getElementById("close-tier-modal-btn");
+  dom.cancelTierModalBtn = document.getElementById("cancel-tier-modal-btn");
+  dom.tierNameInput = document.getElementById("tier-name-input");
+  dom.tierColorInput = document.getElementById("tier-color-input");
+  dom.tierColorHex = document.getElementById("tier-color-hex");
   dom.matteSwatches = document.getElementById("matte-swatches");
-  dom.rowIconPreset = document.getElementById("row-icon-preset");
-  dom.rowIconUrl = document.getElementById("row-icon-url");
-  dom.rowIconFile = document.getElementById("row-icon-file");
-  dom.rowIconPreview = document.getElementById("row-icon-preview");
-  dom.rowIconNone = document.getElementById("row-icon-none");
-  dom.clearRowIconBtn = document.getElementById("clear-row-icon-btn");
+  dom.tierIconPreset = document.getElementById("tier-icon-preset");
+  dom.tierIconUrl = document.getElementById("tier-icon-url");
+  dom.tierIconFile = document.getElementById("tier-icon-file");
+  dom.tierIconPreviewSymbol = document.getElementById("tier-icon-preview-symbol");
+  dom.tierIconPreview = document.getElementById("tier-icon-preview");
+  dom.tierIconNone = document.getElementById("tier-icon-none");
+  dom.clearTierIconBtn = document.getElementById("clear-tier-icon-btn");
 
   dom.storageDialog = document.getElementById("storage-dialog");
   dom.closeStorageModalBtn = document.getElementById("close-storage-modal-btn");
@@ -209,37 +227,49 @@ function cacheDom() {
   dom.savedListsEmpty = document.getElementById("saved-lists-empty");
 
   dom.statusMessage = document.getElementById("status-message");
+  dom.statusMode = document.getElementById("status-mode");
   dom.statusOrientation = document.getElementById("status-orientation");
   dom.statusTierCount = document.getElementById("status-tier-count");
   dom.statusRankedCount = document.getElementById("status-ranked-count");
   dom.statusCandidateCount = document.getElementById("status-candidate-count");
-  dom.statusApiKeys = document.getElementById("status-api-keys");
 }
 
 /* ==========================================================================
-   5. UTILITY HELPERS (CONTRAST, PLACEHOLDER FALLBACKS, CREDENTIAL CHECKS)
+   5. UTILITY HELPERS
    ========================================================================== */
+const SHORT_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+];
+
 function makeId(prefix) {
   return prefix + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
 }
 
-function isPlaceholderValue(val) {
-  if (!val || typeof val !== "string") {
-    return true;
+function formatUnixReleaseDate(unixSeconds) {
+  const ts = Number(unixSeconds);
+  if (!ts || ts <= 0) {
+    return "";
   }
-  const trimmed = val.trim();
-  return trimmed === "" || trimmed.indexOf("PLACEHOLDER_") === 0 || trimmed.indexOf("YOUR_") === 0;
+  const date = new Date(ts * 1000);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return SHORT_MONTHS[date.getUTCMonth()] + " " + date.getUTCDate() + ", " + date.getUTCFullYear();
 }
 
-function hasIgdbCredentials() {
-  if (!isPlaceholderValue(API_CONFIG.IGDB_CLIENT_ID) && !isPlaceholderValue(API_CONFIG.IGDB_ACCESS_TOKEN)) {
-    return true;
+function formatTmdbReleaseDate(isoDateStr) {
+  const match = String(isoDateStr || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return "";
   }
-  return !isPlaceholderValue(API_CONFIG.IGDB_CLIENT_ID) && !isPlaceholderValue(API_CONFIG.IGDB_CLIENT_SECRET);
-}
-
-function hasSteamCredentials() {
-  return !isPlaceholderValue(API_CONFIG.STEAM_API_KEY);
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  if (monthIndex < 0 || monthIndex > 11 || day < 1 || day > 31) {
+    return "";
+  }
+  return SHORT_MONTHS[monthIndex] + " " + day + ", " + year;
 }
 
 function getContrastInk(hexColor) {
@@ -254,105 +284,91 @@ function getContrastInk(hexColor) {
   return luminance > 142 ? "#19171a" : "#fffff0";
 }
 
-function escapeXml(text) {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+const PLACEHOLDER_IMAGE_SRC = "placeholder.png";
 
-function buildPosterFallbackDataUri(gameTitle) {
-  const safeTitle = String(gameTitle || "Game").slice(0, 42);
-  const words = safeTitle.split(/\s+/);
-  const lines = [];
-  let current = "";
-
-  for (let i = 0; i < words.length; i += 1) {
-    const candidate = current ? current + " " + words[i] : words[i];
-    if (candidate.length <= 13 || !current) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = words[i];
-    }
-    if (lines.length === 4) {
-      break;
-    }
-  }
-  if (current && lines.length < 4) {
-    lines.push(current);
-  }
-
-  const textNodes = lines
-    .map(function renderLine(line, index) {
-      const y = 78 + index * 22;
-      return '<text x="90" y="' + y + '" text-anchor="middle" fill="#fffff0" font-family="sans-serif" font-size="14" font-weight="600">' + escapeXml(line) + "</text>";
-    })
-    .join("");
-
-  const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="252" viewBox="0 0 180 252">' +
-    '<rect width="180" height="252" fill="#2e2c3b"/>' +
-    '<rect x="6" y="6" width="168" height="240" fill="none" stroke="#5d5878" stroke-width="2"/>' +
-    textNodes +
-    '<text x="90" y="228" text-anchor="middle" fill="#fc9928" font-family="monospace" font-size="11">[POSTER]</text>' +
-    "</svg>";
-
-  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-}
-
-function buildIconFallbackDataUri(label) {
-  const tag = String(label || "ICON")
-    .replace(/\[Placeholder\]/gi, "")
-    .trim()
-    .slice(0, 4)
-    .toUpperCase() || "ICO";
-
-  const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">' +
-    '<rect width="64" height="64" fill="#252a36"/>' +
-    '<rect x="3" y="3" width="58" height="58" fill="none" stroke="#fc9928" stroke-width="2"/>' +
-    '<text x="32" y="37" text-anchor="middle" fill="#fffff0" font-family="monospace" font-size="15" font-weight="700">' +
-    escapeXml(tag) +
-    "</text>" +
-    "</svg>";
-
-  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-}
-
-function attachPosterFallbacks(imgEl, game) {
+function attachPosterFallbacks(imgEl, item) {
   let stage = 0;
-  imgEl.addEventListener("error", function handlePosterError() {
-    if (stage === 0 && game.backupUrl && imgEl.src !== game.backupUrl) {
+  function handlePosterError() {
+    if (
+      stage === 0 &&
+      item.backupUrl &&
+      imgEl.getAttribute("src") !== item.backupUrl &&
+      imgEl.src !== item.backupUrl
+    ) {
       stage = 1;
-      imgEl.src = game.backupUrl;
+      imgEl.src = item.backupUrl;
       return;
     }
-    if (stage <= 1 && ICON_PLACEHOLDERS.FALLBACK_POSTER && game.imageUrl !== ICON_PLACEHOLDERS.FALLBACK_POSTER) {
+    if (stage <= 1) {
       stage = 2;
-      imgEl.dataset.placeholderSlot = ICON_PLACEHOLDERS.FALLBACK_POSTER;
-      imgEl.src = ICON_PLACEHOLDERS.FALLBACK_POSTER;
-      return;
+      if (imgEl.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+        imgEl.src = PLACEHOLDER_IMAGE_SRC;
+      }
     }
-    if (stage <= 2) {
-      stage = 3;
-      imgEl.src = buildPosterFallbackDataUri(game.name);
-    }
-  });
+  }
+  imgEl.addEventListener("error", handlePosterError);
+  return handlePosterError;
 }
 
-function attachRowIconFallback(imgEl, labelText, originalSrc) {
-  let handled = false;
-  if (originalSrc) {
-    imgEl.dataset.placeholderSlot = originalSrc;
+function getPresetByValue(iconValue) {
+  return TIER_ICON_PRESETS.find(function findPreset(preset) {
+    return preset.value === iconValue && preset.value !== "";
+  }) || null;
+}
+
+function extractSymbolLigature(iconValue) {
+  const raw = String(iconValue || "").trim();
+  if (raw.indexOf("symbol:") === 0) {
+    return raw.slice("symbol:".length).trim();
   }
-  imgEl.addEventListener("error", function handleIconError() {
-    if (!handled) {
-      handled = true;
-      imgEl.src = buildIconFallbackDataUri(labelText);
+  return "";
+}
+
+function applyTierIconSource(imgEl, rawIconUrl) {
+  const targetUrl = String(rawIconUrl || "").trim();
+  if (!targetUrl) {
+    imgEl.src = PLACEHOLDER_IMAGE_SRC;
+    return;
+  }
+
+  let settled = false;
+  function handleIconError() {
+    if (settled) {
+      return;
     }
+    settled = true;
+    if (imgEl.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+      imgEl.src = PLACEHOLDER_IMAGE_SRC;
+    }
+  }
+
+  imgEl.addEventListener("error", handleIconError, { once: true });
+  imgEl.src = targetUrl;
+
+  if (imgEl.complete && imgEl.naturalWidth === 0) {
+    handleIconError();
+  }
+}
+
+function syncSearchClearButton(inputEl, clearBtnEl) {
+  if (!inputEl || !clearBtnEl) {
+    return;
+  }
+  clearBtnEl.hidden = inputEl.value.length === 0;
+}
+
+function wireSearchClearButton(inputEl, clearBtnEl, onCleared) {
+  syncSearchClearButton(inputEl, clearBtnEl);
+  inputEl.addEventListener("input", function onSearchFieldInput() {
+    syncSearchClearButton(inputEl, clearBtnEl);
+  });
+  clearBtnEl.addEventListener("click", function onClearSearchField() {
+    inputEl.value = "";
+    syncSearchClearButton(inputEl, clearBtnEl);
+    if (typeof onCleared === "function") {
+      onCleared();
+    }
+    inputEl.focus();
   });
 }
 
@@ -360,10 +376,15 @@ function setStatus(message) {
   dom.statusMessage.textContent = message;
 }
 
+function clearToolFeedback(element) {
+  element.hidden = true;
+  element.textContent = "";
+  delete element.dataset.level;
+}
+
 function showToolFeedback(element, message, level) {
   if (!message) {
-    element.hidden = true;
-    element.textContent = "";
+    clearToolFeedback(element);
     return;
   }
   element.textContent = message;
@@ -389,122 +410,134 @@ function closeDialog(dialogEl) {
   }
 }
 
-async function fetchWithCorsFallback(url, options) {
-  try {
-    return await fetch(url, options);
-  } catch (directErr) {
-    if (API_CONFIG.CORS_PROXY && API_CONFIG.CORS_PROXY.trim() !== "") {
-      const proxiedUrl = API_CONFIG.CORS_PROXY + encodeURIComponent(url);
-      return await fetch(proxiedUrl, options);
-    }
-    throw directErr;
-  }
-}
-
 /* ==========================================================================
-   6. GAME POOL MANAGEMENT (DEDUPLICATION & MOVES)
+   6. NON-INTERLACED POOL MANAGEMENT (STRICT GAMES VS. MOVIES ISOLATION)
    ========================================================================== */
-function isGameAlreadyPresent(gameId, gameName) {
-  const normalizedName = String(gameName || "").trim().toLowerCase();
-  const inCandidates = state.candidates.some(function checkCandidate(g) {
-    return g.id === gameId || g.name.trim().toLowerCase() === normalizedName;
+function isItemAlreadyPresent(workspace, itemId, itemName) {
+  const normalizedName = String(itemName || "").trim().toLowerCase();
+  const inCandidates = workspace.candidates.some(function checkCandidate(entry) {
+    return entry.id === itemId || entry.name.trim().toLowerCase() === normalizedName;
   });
   if (inCandidates) {
     return true;
   }
-  return state.tiers.some(function checkTier(tier) {
-    return tier.games.some(function checkRanked(g) {
-      return g.id === gameId || g.name.trim().toLowerCase() === normalizedName;
+  return workspace.tiers.some(function checkTier(tier) {
+    return tier.games.some(function checkRanked(entry) {
+      return entry.id === itemId || entry.name.trim().toLowerCase() === normalizedName;
     });
   });
 }
 
-function addGamesToCandidates(gamesArray) {
+function addItemsToCandidates(itemsArray, targetMode) {
+  const modeKey = targetMode === "movies" ? "movies" : "games";
+  const workspace = state.workspaces[modeKey];
+  const requiredMediaType = expectedMediaTypeForMode(modeKey);
   let addedCount = 0;
   let skippedCount = 0;
 
-  for (let i = 0; i < gamesArray.length; i += 1) {
-    const raw = gamesArray[i];
-    const cleanGame = {
-      id: raw.id || makeId("game"),
-      name: String(raw.name || "Untitled Game").trim(),
+  for (let i = 0; i < itemsArray.length; i += 1) {
+    const raw = itemsArray[i];
+    if (!raw) {
+      continue;
+    }
+    // Enforce non-interlacing: reject any record tagged with the opposite media type
+    if (raw.mediaType && raw.mediaType !== requiredMediaType) {
+      continue;
+    }
+
+    const cleanTitle = String(raw.name || "Untitled").trim();
+    const cleanItem = {
+      id: raw.id || makeId(requiredMediaType),
+      mediaType: requiredMediaType,
+      name: cleanTitle,
       year: raw.year ? String(raw.year) : "",
-      imageUrl: raw.imageUrl || ICON_PLACEHOLDERS.FALLBACK_POSTER,
+      releaseDate: raw.releaseDate ? String(raw.releaseDate) : (raw.year ? String(raw.year) : ""),
+      imageUrl: raw.imageUrl || PLACEHOLDER_IMAGE_SRC,
       backupUrl: raw.backupUrl || "",
-      source: raw.source || "manual"
+      source: raw.source || modeKey
     };
 
-    if (isGameAlreadyPresent(cleanGame.id, cleanGame.name)) {
+    if (isItemAlreadyPresent(workspace, cleanItem.id, cleanItem.name)) {
       skippedCount += 1;
     } else {
-      state.candidates.push(cleanGame);
+      workspace.candidates.push(cleanItem);
       addedCount += 1;
     }
   }
 
-  renderWorkspace();
+  if (state.mode === modeKey) {
+    renderWorkspace();
+  }
   return { addedCount: addedCount, skippedCount: skippedCount };
 }
 
-function extractGameById(gameId) {
-  const candIdx = state.candidates.findIndex(function findCand(g) {
-    return g.id === gameId;
+function extractItemById(workspace, itemId) {
+  const candIdx = workspace.candidates.findIndex(function findCand(entry) {
+    return entry.id === itemId;
   });
   if (candIdx !== -1) {
-    return state.candidates.splice(candIdx, 1)[0];
+    return workspace.candidates.splice(candIdx, 1)[0];
   }
 
-  for (let t = 0; t < state.tiers.length; t += 1) {
-    const tier = state.tiers[t];
-    const gameIdx = tier.games.findIndex(function findInTier(g) {
-      return g.id === gameId;
+  for (let t = 0; t < workspace.tiers.length; t += 1) {
+    const tier = workspace.tiers[t];
+    const itemIdx = tier.games.findIndex(function findInTier(entry) {
+      return entry.id === itemId;
     });
-    if (gameIdx !== -1) {
-      return tier.games.splice(gameIdx, 1)[0];
+    if (itemIdx !== -1) {
+      return tier.games.splice(itemIdx, 1)[0];
     }
   }
   return null;
 }
 
-function moveGameToDestination(gameId, destinationType, destinationTierId, beforeGameId) {
-  const game = extractGameById(gameId);
-  if (!game) {
+function moveItemToDestination(itemId, destinationType, destinationTierId, beforeItemId) {
+  const workspace = getActiveWorkspace();
+  const requiredMediaType = expectedMediaTypeForMode(state.mode);
+  const item = extractItemById(workspace, itemId);
+  if (!item) {
     return;
   }
 
+  // Guard against cross-mode interlacing
+  if (item.mediaType && item.mediaType !== requiredMediaType) {
+    return;
+  }
+  item.mediaType = requiredMediaType;
+
   if (destinationType === "candidates") {
-    if (beforeGameId) {
-      const targetIdx = state.candidates.findIndex(function findTarget(g) {
-        return g.id === beforeGameId;
+    if (beforeItemId) {
+      const targetIdx = workspace.candidates.findIndex(function findTarget(entry) {
+        return entry.id === beforeItemId;
       });
       if (targetIdx !== -1) {
-        state.candidates.splice(targetIdx, 0, game);
+        workspace.candidates.splice(targetIdx, 0, item);
       } else {
-        state.candidates.push(game);
+        workspace.candidates.push(item);
       }
     } else {
-      state.candidates.push(game);
+      workspace.candidates.push(item);
     }
-    setStatus('Moved "' + game.name + '" to Candidates');
+    setStatus('Moved "' + item.name + '" to Candidates');
   } else if (destinationType === "tier") {
-    const targetTier = state.tiers.find(function findTier(t) {
+    const targetTier = workspace.tiers.find(function findTier(t) {
       return t.id === destinationTierId;
     });
     if (!targetTier) {
-      state.candidates.push(game);
-    } else if (beforeGameId) {
-      const targetIdx = targetTier.games.findIndex(function findTarget(g) {
-        return g.id === beforeGameId;
+      workspace.candidates.push(item);
+    } else if (beforeItemId) {
+      const targetIdx = targetTier.games.findIndex(function findTarget(entry) {
+        return entry.id === beforeItemId;
       });
       if (targetIdx !== -1) {
-        targetTier.games.splice(targetIdx, 0, game);
+        targetTier.games.splice(targetIdx, 0, item);
       } else {
-        targetTier.games.push(game);
+        targetTier.games.push(item);
       }
-      setStatus('Assigned "' + game.name + '" to tier ' + targetTier.name);
+      setStatus('Assigned "' + item.name + '" to tier ' + targetTier.name);
     } else {
-      targetTier.games.push(game);
-      setStatus('Assigned "' + game.name + '" to tier ' + targetTier.name);
+      targetTier.games.push(item);
+      setStatus('Assigned "' + item.name + '" to tier ' + targetTier.name);
     }
   }
 
@@ -514,62 +547,73 @@ function moveGameToDestination(gameId, destinationType, destinationTierId, befor
 /* ==========================================================================
    7. RENDERING ENGINE
    ========================================================================== */
-function createPosterListItem(game, containerType, tierId) {
+function createPosterListItem(item, containerType, tierId) {
+  const workspace = getActiveWorkspace();
   const li = document.createElement("li");
   li.className = "poster-item";
   li.draggable = true;
-  li.dataset.gameId = game.id;
+  li.dataset.gameId = item.id;
+  li.dataset.mediaType = item.mediaType || expectedMediaTypeForMode(state.mode);
   li.dataset.containerType = containerType;
   if (tierId) {
     li.dataset.tierId = tierId;
   }
-  li.title = game.year ? game.name + " (" + game.year + ")" : game.name;
+  li.title = item.year ? item.name + " (" + item.year + ")" : item.name;
 
-  // Requirement: Poster images simply have the name of the game as alt text
+  // Poster images use strictly the title of the game/movie as alt text
   const img = document.createElement("img");
   img.className = "poster-img";
-  img.src = game.imageUrl || ICON_PLACEHOLDERS.FALLBACK_POSTER;
-  img.alt = game.name;
+  img.alt = item.name;
   img.loading = "lazy";
   img.decoding = "async";
-  attachPosterFallbacks(img, game);
+  const onPosterError = attachPosterFallbacks(img, item);
+  img.src = item.imageUrl || PLACEHOLDER_IMAGE_SRC;
+  if (img.complete && img.naturalWidth === 0 && img.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+    onPosterError();
+  }
 
   const caption = document.createElement("span");
   caption.className = "poster-caption";
-  caption.textContent = game.name;
+  caption.textContent = item.name;
 
   const quickBtn = document.createElement("button");
   quickBtn.type = "button";
   quickBtn.className = "poster-quick-btn";
-  quickBtn.textContent = "x";
+
+  const quickIcon = document.createElement("span");
+  quickIcon.className = "material-symbols-outlined poster-quick-icon";
+  quickIcon.setAttribute("aria-hidden", "true");
+  quickIcon.textContent = "close_small";
+  quickBtn.appendChild(quickIcon);
 
   if (containerType === "tier") {
     quickBtn.title = "Remove from tier back to Candidates";
-    quickBtn.setAttribute("aria-label", "Remove " + game.name + " from tier");
+    quickBtn.setAttribute("aria-label", "Remove " + item.name + " from tier");
     quickBtn.addEventListener("click", function handleReturnToPool(event) {
       event.stopPropagation();
-      moveGameToDestination(game.id, "candidates", null, null);
+      moveItemToDestination(item.id, "candidates", null, null);
     });
   } else {
     quickBtn.title = "Delete from Candidate pool";
-    quickBtn.setAttribute("aria-label", "Delete " + game.name + " from candidates");
+    quickBtn.setAttribute("aria-label", "Delete " + item.name + " from candidates");
     quickBtn.addEventListener("click", function handleDeleteCandidate(event) {
       event.stopPropagation();
-      extractGameById(game.id);
-      setStatus('Removed "' + game.name + '" from Candidates');
+      extractItemById(workspace, item.id);
+      setStatus('Removed "' + item.name + '" from Candidates');
       renderWorkspace();
     });
   }
 
   li.addEventListener("dragstart", function handleDragStart(event) {
     dragContext = {
-      gameId: game.id,
+      itemId: item.id,
+      mode: state.mode,
       originType: containerType,
       originTierId: tierId || null
     };
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", game.id);
+      event.dataTransfer.setData("text/plain", item.id);
     }
     window.requestAnimationFrame(function markDragging() {
       li.classList.add("is-dragging");
@@ -584,7 +628,7 @@ function createPosterListItem(game, containerType, tierId) {
 
   li.addEventListener("dragover", function handleCardDragOver(event) {
     event.preventDefault();
-    if (dragContext && dragContext.gameId !== game.id) {
+    if (dragContext && dragContext.mode === state.mode && dragContext.itemId !== item.id) {
       li.classList.add("is-drop-target");
     }
   });
@@ -599,25 +643,30 @@ function createPosterListItem(game, containerType, tierId) {
     li.classList.remove("is-drop-target");
     clearDragHighlights();
 
-    const droppedId = dragContext
-      ? dragContext.gameId
-      : (event.dataTransfer ? event.dataTransfer.getData("text/plain") : "");
-
-    if (!droppedId || droppedId === game.id) {
+    if (dragContext && dragContext.mode !== state.mode) {
       return;
     }
 
+    const droppedId = dragContext
+      ? dragContext.itemId
+      : (event.dataTransfer ? event.dataTransfer.getData("text/plain") : "");
+
+    if (!droppedId || droppedId === item.id) {
+      return;
+    }
+
+    const activeWs = getActiveWorkspace();
     const rect = li.getBoundingClientRect();
     const insertBefore = event.clientX < rect.left + rect.width / 2;
     if (insertBefore) {
-      moveGameToDestination(droppedId, containerType, tierId || null, game.id);
+      moveItemToDestination(droppedId, containerType, tierId || null, item.id);
     } else {
       const siblingList = containerType === "candidates"
-        ? state.candidates
-        : (state.tiers.find(function findT(t) { return t.id === tierId; }) || { games: [] }).games;
-      const idx = siblingList.findIndex(function findCurrent(g) { return g.id === game.id; });
-      const nextGame = idx !== -1 && idx + 1 < siblingList.length ? siblingList[idx + 1] : null;
-      moveGameToDestination(droppedId, containerType, tierId || null, nextGame ? nextGame.id : null);
+        ? activeWs.candidates
+        : (activeWs.tiers.find(function findT(t) { return t.id === tierId; }) || { games: [] }).games;
+      const idx = siblingList.findIndex(function findCurrent(entry) { return entry.id === item.id; });
+      const nextItem = idx !== -1 && idx + 1 < siblingList.length ? siblingList[idx + 1] : null;
+      moveItemToDestination(droppedId, containerType, tierId || null, nextItem ? nextItem.id : null);
     }
   });
 
@@ -637,6 +686,9 @@ function clearDragHighlights() {
 function bindDropZoneEvents(zoneEl, destinationType, tierId) {
   zoneEl.addEventListener("dragover", function handleZoneDragOver(event) {
     event.preventDefault();
+    if (dragContext && dragContext.mode !== state.mode) {
+      return;
+    }
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = "move";
     }
@@ -652,25 +704,30 @@ function bindDropZoneEvents(zoneEl, destinationType, tierId) {
   zoneEl.addEventListener("drop", function handleZoneDrop(event) {
     event.preventDefault();
     zoneEl.classList.remove("is-drag-over");
+    if (dragContext && dragContext.mode !== state.mode) {
+      return;
+    }
     const droppedId = dragContext
-      ? dragContext.gameId
+      ? dragContext.itemId
       : (event.dataTransfer ? event.dataTransfer.getData("text/plain") : "");
     if (!droppedId) {
       return;
     }
-    moveGameToDestination(droppedId, destinationType, tierId || null, null);
+    moveItemToDestination(droppedId, destinationType, tierId || null, null);
   });
 }
 
 function renderTiers() {
-  dom.tierRowsList.innerHTML = "";
-  const isHorizontal = state.orientation === "horizontal";
+  const workspace = getActiveWorkspace();
+  dom.tiersList.innerHTML = "";
+  const isVerticalColumns = workspace.orientation === "vertical";
+  const nounLabel = state.mode === "movies" ? "Movies" : "Games";
 
-  for (let index = 0; index < state.tiers.length; index += 1) {
-    const tier = state.tiers[index];
-    const rowLi = document.createElement("li");
-    rowLi.className = "tier-row";
-    rowLi.dataset.tierId = tier.id;
+  for (let index = 0; index < workspace.tiers.length; index += 1) {
+    const tier = workspace.tiers[index];
+    const tierLi = document.createElement("li");
+    tierLi.className = "tier-item";
+    tierLi.dataset.tierId = tier.id;
 
     // Header cell (name + optional icon + user-selected matte color via CSS variable)
     const headerCell = document.createElement("div");
@@ -679,12 +736,21 @@ function renderTiers() {
     headerCell.style.setProperty("--tier-ink", getContrastInk(tier.color));
 
     if (tier.icon) {
-      const iconImg = document.createElement("img");
-      iconImg.className = "tier-icon-img";
-      iconImg.src = tier.icon;
-      iconImg.alt = tier.iconAlt || (tier.name + " tier icon");
-      attachRowIconFallback(iconImg, tier.name, tier.icon);
-      headerCell.appendChild(iconImg);
+      const symbolName = extractSymbolLigature(tier.icon);
+      if (symbolName) {
+        const iconSpan = document.createElement("span");
+        iconSpan.className = "material-symbols-outlined tier-icon-symbol";
+        iconSpan.setAttribute("role", "img");
+        iconSpan.setAttribute("aria-label", tier.iconAlt || (tier.name + " tier icon"));
+        iconSpan.textContent = symbolName;
+        headerCell.appendChild(iconSpan);
+      } else {
+        const iconImg = document.createElement("img");
+        iconImg.className = "tier-icon-img";
+        iconImg.alt = tier.iconAlt || (tier.name + " tier icon");
+        applyTierIconSource(iconImg, tier.icon);
+        headerCell.appendChild(iconImg);
+      }
     }
 
     const nameSpan = document.createElement("span");
@@ -701,7 +767,7 @@ function renderTiers() {
 
     const posterUl = document.createElement("ul");
     posterUl.className = "poster-collection";
-    posterUl.setAttribute("aria-label", "Games in tier " + tier.name);
+    posterUl.setAttribute("aria-label", nounLabel + " in tier " + tier.name);
 
     for (let g = 0; g < tier.games.length; g += 1) {
       posterUl.appendChild(createPosterListItem(tier.games[g], "tier", tier.id));
@@ -718,36 +784,36 @@ function renderTiers() {
     editBtn.textContent = "Edit";
     editBtn.title = "Edit name, color, or icon for tier " + tier.name;
     editBtn.addEventListener("click", function onEditClick() {
-      openRowEditorModal(tier.id);
+      openTierEditorModal(tier.id);
     });
 
     const prevBtn = document.createElement("button");
     prevBtn.type = "button";
     prevBtn.className = "ide-btn ide-btn-compact";
-    prevBtn.textContent = isHorizontal ? "Left" : "Up";
+    prevBtn.textContent = isVerticalColumns ? "Left" : "Up";
     prevBtn.disabled = index === 0;
     prevBtn.title = "Move tier earlier";
     prevBtn.addEventListener("click", function onMovePrev() {
-      moveTierRow(index, -1);
+      moveTier(index, -1);
     });
 
     const nextBtn = document.createElement("button");
     nextBtn.type = "button";
     nextBtn.className = "ide-btn ide-btn-compact";
-    nextBtn.textContent = isHorizontal ? "Right" : "Down";
-    nextBtn.disabled = index === state.tiers.length - 1;
+    nextBtn.textContent = isVerticalColumns ? "Right" : "Down";
+    nextBtn.disabled = index === workspace.tiers.length - 1;
     nextBtn.title = "Move tier later";
     nextBtn.addEventListener("click", function onMoveNext() {
-      moveTierRow(index, 1);
+      moveTier(index, 1);
     });
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "ide-btn ide-btn-compact";
     delBtn.textContent = "Del";
-    delBtn.title = "Delete tier row (returns ranked games to Candidates)";
+    delBtn.title = "Delete tier (returns ranked items to Candidates)";
     delBtn.addEventListener("click", function onDeleteTier() {
-      deleteTierRow(tier.id);
+      deleteTier(tier.id);
     });
 
     controlsCell.appendChild(editBtn);
@@ -755,41 +821,46 @@ function renderTiers() {
     controlsCell.appendChild(nextBtn);
     controlsCell.appendChild(delBtn);
 
-    if (isHorizontal) {
-      rowLi.appendChild(headerCell);
-      rowLi.appendChild(controlsCell);
-      rowLi.appendChild(dropzone);
+    if (isVerticalColumns) {
+      tierLi.appendChild(headerCell);
+      tierLi.appendChild(controlsCell);
+      tierLi.appendChild(dropzone);
     } else {
-      rowLi.appendChild(headerCell);
-      rowLi.appendChild(dropzone);
-      rowLi.appendChild(controlsCell);
+      tierLi.appendChild(headerCell);
+      tierLi.appendChild(dropzone);
+      tierLi.appendChild(controlsCell);
     }
 
-    dom.tierRowsList.appendChild(rowLi);
+    dom.tiersList.appendChild(tierLi);
   }
 }
 
 function renderCandidates() {
+  const workspace = getActiveWorkspace();
+  const isMovies = state.mode === "movies";
   dom.candidatesList.innerHTML = "";
-  const query = state.candidateFilter.trim().toLowerCase();
+  dom.candidatesList.setAttribute(
+    "aria-label",
+    isMovies ? "Candidate movie posters" : "Candidate game posters"
+  );
 
+  const query = workspace.candidateFilter.trim().toLowerCase();
   const visibleCandidates = query
-    ? state.candidates.filter(function matchFilter(g) {
-        return g.name.toLowerCase().indexOf(query) !== -1;
+    ? workspace.candidates.filter(function matchFilter(entry) {
+        return entry.name.toLowerCase().indexOf(query) !== -1;
       })
-    : state.candidates;
+    : workspace.candidates;
 
   for (let i = 0; i < visibleCandidates.length; i += 1) {
     dom.candidatesList.appendChild(createPosterListItem(visibleCandidates[i], "candidates", null));
   }
 
-  dom.candidatesCount.textContent = String(state.candidates.length);
-  if (state.candidates.length === 0) {
-    dom.candidatesEmptyMsg.textContent =
-      "Candidate pool is empty. Search titles via IGDB, import a Steam Community profile, or click Load Defaults.";
+  dom.candidatesCount.textContent = String(workspace.candidates.length);
+  if (workspace.candidates.length === 0) {
+    dom.candidatesEmptyMsg.textContent = "Candidate pool is empty. Search titles or click Load Defaults.";
     dom.candidatesEmptyMsg.hidden = false;
   } else if (visibleCandidates.length === 0) {
-    dom.candidatesEmptyMsg.textContent = 'No candidates match filter "' + state.candidateFilter + '".';
+    dom.candidatesEmptyMsg.textContent = 'No candidates match filter "' + workspace.candidateFilter + '".';
     dom.candidatesEmptyMsg.hidden = false;
   } else {
     dom.candidatesEmptyMsg.hidden = true;
@@ -797,19 +868,39 @@ function renderCandidates() {
 }
 
 function renderMetricsAndChrome() {
+  const workspace = getActiveWorkspace();
+  const isMovies = state.mode === "movies";
+
+  // Mode sync (strictly shows CheapShark in Games mode and TMDB in Movies mode)
+  dom.workspaceMain.dataset.mode = state.mode;
+  dom.modeLabel.textContent = isMovies ? "Movies" : "Games";
+  dom.modeSwitch.setAttribute("aria-pressed", String(isMovies));
+  dom.statusMode.textContent = state.mode.toUpperCase();
+  dom.gameToolWindow.hidden = isMovies;
+  dom.movieToolWindow.hidden = !isMovies;
+  dom.documentHint.textContent = "Drag and drop posters into tiers or back to the candidate pool.";
+
+  // Filter & search clear button sync
+  if (document.activeElement !== dom.candidatesFilterInput) {
+    dom.candidatesFilterInput.value = workspace.candidateFilter;
+  }
+  syncSearchClearButton(dom.gameQueryInput, dom.clearGameQueryBtn);
+  syncSearchClearButton(dom.movieQueryInput, dom.clearMovieQueryBtn);
+  syncSearchClearButton(dom.candidatesFilterInput, dom.clearCandidatesFilterBtn);
+
   // Title sync
   if (document.activeElement !== dom.tierlistTitle) {
-    dom.tierlistTitle.value = state.title;
+    dom.tierlistTitle.value = workspace.title;
   }
-  dom.srDocumentHeading.textContent = state.title || "Untitled Video Game Tier List";
-  document.title = (state.title || "Untitled Tier List") + " // CueTier";
+  dom.srDocumentHeading.textContent = workspace.title || defaultTitleForMode(state.mode);
+  document.title = (workspace.title || defaultTitleForMode(state.mode)) + " // Strata";
 
   // Orientation sync
-  dom.workspaceMain.dataset.orientation = state.orientation;
-  const isHorizontal = state.orientation === "horizontal";
-  dom.orientationLabel.textContent = isHorizontal ? "Horizontal" : "Vertical";
-  dom.orientationSwitch.setAttribute("aria-pressed", String(isHorizontal));
-  dom.statusOrientation.textContent = state.orientation.toUpperCase();
+  dom.workspaceMain.dataset.orientation = workspace.orientation;
+  const isVertical = workspace.orientation === "vertical";
+  dom.orientationLabel.textContent = isVertical ? "Vertical" : "Horizontal";
+  dom.orientationSwitch.setAttribute("aria-pressed", String(isVertical));
+  dom.statusOrientation.textContent = workspace.orientation.toUpperCase();
 
   // Theme sync
   dom.html.dataset.theme = state.theme;
@@ -819,16 +910,12 @@ function renderMetricsAndChrome() {
 
   // Status bar counts
   let rankedTotal = 0;
-  for (let i = 0; i < state.tiers.length; i += 1) {
-    rankedTotal += state.tiers[i].games.length;
+  for (let i = 0; i < workspace.tiers.length; i += 1) {
+    rankedTotal += workspace.tiers[i].games.length;
   }
-  dom.statusTierCount.textContent = String(state.tiers.length);
+  dom.statusTierCount.textContent = String(workspace.tiers.length);
   dom.statusRankedCount.textContent = String(rankedTotal);
-  dom.statusCandidateCount.textContent = String(state.candidates.length);
-
-  const igdbState = hasIgdbCredentials() ? "IGDB: Ready" : "IGDB: Placeholder";
-  const steamState = hasSteamCredentials() ? "Steam: Ready" : "Steam: Placeholder";
-  dom.statusApiKeys.textContent = igdbState + " | " + steamState;
+  dom.statusCandidateCount.textContent = String(workspace.candidates.length);
 
   const savedLists = readSavedTierLists();
   dom.savedCount.textContent = String(savedLists.length);
@@ -838,36 +925,40 @@ function renderWorkspace() {
   renderMetricsAndChrome();
   renderTiers();
   renderCandidates();
+  renderModeSearchMatches("games");
+  renderModeSearchMatches("movies");
 }
 
 /* ==========================================================================
-   8. TIER ROW CRUD (ADD, EDIT NAME/COLOR/ICON, REORDER, DELETE)
+   8. TIER CRUD (ADD, EDIT NAME/COLOR/ICON, REORDER, DELETE)
    ========================================================================== */
-function moveTierRow(index, delta) {
+function moveTier(index, delta) {
+  const workspace = getActiveWorkspace();
   const targetIndex = index + delta;
-  if (targetIndex < 0 || targetIndex >= state.tiers.length) {
+  if (targetIndex < 0 || targetIndex >= workspace.tiers.length) {
     return;
   }
-  const moved = state.tiers.splice(index, 1)[0];
-  state.tiers.splice(targetIndex, 0, moved);
+  const moved = workspace.tiers.splice(index, 1)[0];
+  workspace.tiers.splice(targetIndex, 0, moved);
   setStatus('Reordered tier "' + moved.name + '"');
   renderWorkspace();
 }
 
-function deleteTierRow(tierId) {
-  const idx = state.tiers.findIndex(function findTier(t) {
+function deleteTier(tierId) {
+  const workspace = getActiveWorkspace();
+  const idx = workspace.tiers.findIndex(function findTier(t) {
     return t.id === tierId;
   });
   if (idx === -1) {
     return;
   }
-  const removed = state.tiers.splice(idx, 1)[0];
+  const removed = workspace.tiers.splice(idx, 1)[0];
   if (removed.games.length > 0) {
     for (let i = 0; i < removed.games.length; i += 1) {
-      state.candidates.push(removed.games[i]);
+      workspace.candidates.push(removed.games[i]);
     }
     setStatus(
-      'Deleted tier "' + removed.name + '" and returned ' + removed.games.length + " game(s) to Candidates"
+      'Deleted tier "' + removed.name + '" and returned ' + removed.games.length + " item(s) to Candidates"
     );
   } else {
     setStatus('Deleted tier "' + removed.name + '"');
@@ -875,8 +966,7 @@ function deleteTierRow(tierId) {
   renderWorkspace();
 }
 
-function initRowEditorControls() {
-  // Populate matte swatch buttons
+function initTierEditorControls() {
   dom.matteSwatches.innerHTML = "";
   for (let i = 0; i < MATTE_SWATCHES.length; i += 1) {
     const hex = MATTE_SWATCHES[i];
@@ -888,27 +978,26 @@ function initRowEditorControls() {
     btn.title = "Select matte color " + hex;
     btn.setAttribute("aria-label", "Select color " + hex);
     btn.addEventListener("click", function onPickSwatch() {
-      setRowModalColor(hex);
+      setTierModalColor(hex);
     });
     dom.matteSwatches.appendChild(btn);
   }
 
-  // Populate preset icon select options
-  dom.rowIconPreset.innerHTML = "";
-  for (let j = 0; j < ICON_PLACEHOLDERS.TIER_PRESETS.length; j += 1) {
-    const preset = ICON_PLACEHOLDERS.TIER_PRESETS[j];
+  dom.tierIconPreset.innerHTML = "";
+  for (let j = 0; j < TIER_ICON_PRESETS.length; j += 1) {
+    const preset = TIER_ICON_PRESETS[j];
     const opt = document.createElement("option");
-    opt.value = preset.src;
+    opt.value = preset.value;
     opt.dataset.alt = preset.alt;
     opt.textContent = preset.label;
-    dom.rowIconPreset.appendChild(opt);
+    dom.tierIconPreset.appendChild(opt);
   }
 }
 
-function setRowModalColor(hex) {
+function setTierModalColor(hex) {
   const normalized = String(hex || "#7d6891").toLowerCase();
-  dom.rowColorInput.value = normalized;
-  dom.rowColorHex.textContent = normalized;
+  dom.tierColorInput.value = normalized;
+  dom.tierColorHex.textContent = normalized;
 
   const swatches = dom.matteSwatches.querySelectorAll(".swatch-btn");
   for (let i = 0; i < swatches.length; i += 1) {
@@ -916,242 +1005,169 @@ function setRowModalColor(hex) {
   }
 }
 
-function updateRowModalIconPreview(src, labelHint) {
-  const trimmed = String(src || "").trim();
+function updateTierModalIconPreview(iconValue) {
+  const trimmed = String(iconValue || "").trim();
   if (!trimmed) {
-    dom.rowIconPreview.hidden = true;
-    dom.rowIconPreview.removeAttribute("src");
-    dom.rowIconNone.hidden = false;
+    dom.tierIconPreviewSymbol.hidden = true;
+    dom.tierIconPreviewSymbol.textContent = "";
+    dom.tierIconPreview.hidden = true;
+    dom.tierIconNone.hidden = false;
     return;
   }
 
-  dom.rowIconNone.hidden = true;
-  dom.rowIconPreview.hidden = false;
-  dom.rowIconPreview.addEventListener(
-    "error",
-    function onPreviewErr() {
-      dom.rowIconPreview.src = buildIconFallbackDataUri(labelHint || dom.rowNameInput.value || "ICO");
-    },
-    { once: true }
-  );
-  dom.rowIconPreview.src = trimmed;
+  const symbolName = extractSymbolLigature(trimmed);
+  if (symbolName) {
+    const preset = getPresetByValue(trimmed);
+    dom.tierIconNone.hidden = true;
+    dom.tierIconPreview.hidden = true;
+    dom.tierIconPreviewSymbol.textContent = symbolName;
+    dom.tierIconPreviewSymbol.setAttribute(
+      "aria-label",
+      preset ? preset.alt : (symbolName + " icon")
+    );
+    dom.tierIconPreviewSymbol.hidden = false;
+    return;
+  }
+
+  dom.tierIconNone.hidden = true;
+  dom.tierIconPreviewSymbol.hidden = true;
+  dom.tierIconPreviewSymbol.textContent = "";
+  dom.tierIconPreview.hidden = false;
+  dom.tierIconPreview.src = trimmed;
+
+  if (
+    dom.tierIconPreview.complete &&
+    dom.tierIconPreview.naturalWidth === 0 &&
+    dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC
+  ) {
+    dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
+  }
 }
 
-function openRowEditorModal(tierId) {
-  dom.rowIconFile.value = "";
+function openTierEditorModal(tierId) {
+  const workspace = getActiveWorkspace();
+  dom.tierIconFile.value = "";
   if (tierId === null) {
-    state.isCreatingRow = true;
-    state.editingRowId = null;
-    dom.rowModalTitle.textContent = "Add New Tier Row";
-    const nextColor = MATTE_SWATCHES[state.tiers.length % MATTE_SWATCHES.length];
-    dom.rowNameInput.value = "New Tier";
-    setRowModalColor(nextColor);
-    dom.rowIconPreset.value = "";
-    dom.rowIconUrl.value = "";
-    updateRowModalIconPreview("", "New");
+    state.isCreatingTier = true;
+    state.editingTierId = null;
+    state.modalIconValue = "";
+    dom.tierModalTitle.textContent = "Add New Tier";
+    const nextColor = MATTE_SWATCHES[workspace.tiers.length % MATTE_SWATCHES.length];
+    dom.tierNameInput.value = "New Tier";
+    setTierModalColor(nextColor);
+    dom.tierIconPreset.value = "";
+    dom.tierIconUrl.value = "";
+    updateTierModalIconPreview("");
   } else {
-    const tier = state.tiers.find(function findT(t) {
+    const tier = workspace.tiers.find(function findT(t) {
       return t.id === tierId;
     });
     if (!tier) {
       return;
     }
-    state.isCreatingRow = false;
-    state.editingRowId = tier.id;
-    dom.rowModalTitle.textContent = 'Edit Tier Row "' + tier.name + '"';
-    dom.rowNameInput.value = tier.name;
-    setRowModalColor(tier.color);
+    state.isCreatingTier = false;
+    state.editingTierId = tier.id;
+    state.modalIconValue = tier.icon || "";
+    dom.tierModalTitle.textContent = 'Edit Tier "' + tier.name + '"';
+    dom.tierNameInput.value = tier.name;
+    setTierModalColor(tier.color);
 
-    const matchingPreset = ICON_PLACEHOLDERS.TIER_PRESETS.find(function findPreset(p) {
-      return p.src === tier.icon;
-    });
-    dom.rowIconPreset.value = matchingPreset ? matchingPreset.src : "";
-    dom.rowIconUrl.value = tier.icon || "";
-    updateRowModalIconPreview(tier.icon, tier.name);
+    const matchingPreset = getPresetByValue(tier.icon);
+    dom.tierIconPreset.value = matchingPreset ? matchingPreset.value : "";
+    dom.tierIconUrl.value = matchingPreset ? "" : (tier.icon || "");
+    updateTierModalIconPreview(state.modalIconValue);
   }
 
-  openDialog(dom.rowEditorDialog);
-  dom.rowNameInput.focus();
-  dom.rowNameInput.select();
+  openDialog(dom.tierEditorDialog);
+  dom.tierNameInput.focus();
+  dom.tierNameInput.select();
 }
 
-function handleSaveRowModal(event) {
+function handleSaveTierModal(event) {
   event.preventDefault();
-  const name = dom.rowNameInput.value.trim() || "Untitled";
-  const color = dom.rowColorInput.value || "#7d6891";
-  const iconSrc = dom.rowIconUrl.value.trim();
+  const workspace = getActiveWorkspace();
+  const name = dom.tierNameInput.value.trim() || "Untitled";
+  const color = dom.tierColorInput.value || "#7d6891";
+  const iconValue = String(state.modalIconValue || "").trim();
 
-  const matchingPreset = ICON_PLACEHOLDERS.TIER_PRESETS.find(function findP(p) {
-    return p.src === iconSrc && p.src !== "";
-  });
-  const iconAlt = iconSrc
+  const matchingPreset = getPresetByValue(iconValue);
+  const iconAlt = iconValue
     ? (matchingPreset ? matchingPreset.alt : name + " tier icon")
     : "";
 
-  if (state.isCreatingRow) {
-    state.tiers.push({
+  if (state.isCreatingTier) {
+    workspace.tiers.push({
       id: makeId("tier"),
       name: name,
       color: color,
-      icon: iconSrc,
+      icon: iconValue,
       iconAlt: iconAlt,
       games: []
     });
-    setStatus('Added new tier row "' + name + '"');
+    setStatus('Added new tier "' + name + '"');
   } else {
-    const tier = state.tiers.find(function findT(t) {
-      return t.id === state.editingRowId;
+    const tier = workspace.tiers.find(function findT(t) {
+      return t.id === state.editingTierId;
     });
     if (tier) {
       tier.name = name;
       tier.color = color;
-      tier.icon = iconSrc;
+      tier.icon = iconValue;
       tier.iconAlt = iconAlt;
-      setStatus('Updated tier row "' + name + '"');
+      setStatus('Updated tier "' + name + '"');
     }
   }
 
-  closeDialog(dom.rowEditorDialog);
+  closeDialog(dom.tierEditorDialog);
   renderWorkspace();
 }
 
 /* ==========================================================================
-   9. IGDB SEARCH FEATURE (WITH MULTI-MATCH CONFIRMATION & FALLBACK)
+   9. SHARED SEARCH MATCHES RENDERER + CHEAPSHARK GAME SEARCH (GAMES MODE)
    ========================================================================== */
-async function obtainIgdbAccessToken() {
-  if (!isPlaceholderValue(API_CONFIG.IGDB_ACCESS_TOKEN)) {
-    return API_CONFIG.IGDB_ACCESS_TOKEN.trim();
-  }
-
-  const now = Date.now();
-  if (state.igdbTokenCache.token && state.igdbTokenCache.expiresAt > now + 30000) {
-    return state.igdbTokenCache.token;
-  }
-
-  const authUrl =
-    "https://id.twitch.tv/oauth2/token?client_id=" +
-    encodeURIComponent(API_CONFIG.IGDB_CLIENT_ID.trim()) +
-    "&client_secret=" +
-    encodeURIComponent(API_CONFIG.IGDB_CLIENT_SECRET.trim()) +
-    "&grant_type=client_credentials";
-
-  const response = await fetch(authUrl, { method: "POST" });
-  if (!response.ok) {
-    throw new Error("Twitch OAuth token exchange failed (HTTP " + response.status + "). Check IGDB_CLIENT_ID and IGDB_CLIENT_SECRET.");
-  }
-
-  const data = await response.json();
-  if (!data.access_token) {
-    throw new Error("Twitch OAuth response did not include an access_token.");
-  }
-
-  state.igdbTokenCache.token = data.access_token;
-  state.igdbTokenCache.expiresAt = now + (Number(data.expires_in) || 3600) * 1000;
-  return data.access_token;
+function closeSearchMatches(targetMode) {
+  const isMovies = targetMode === "movies";
+  const workspace = state.workspaces[isMovies ? "movies" : "games"];
+  const feedbackEl = isMovies ? dom.movieSearchFeedback : dom.gameSearchFeedback;
+  workspace.searchMatches = [];
+  clearToolFeedback(feedbackEl);
+  renderModeSearchMatches(isMovies ? "movies" : "games");
 }
 
-async function queryIgdbGames(searchTerm) {
-  const token = await obtainIgdbAccessToken();
-  const sanitized = searchTerm.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const apicalypseQuery =
-    'search "' + sanitized + '"; fields name, first_release_date, cover.image_id, cover.url; limit 12;';
+function renderModeSearchMatches(targetMode) {
+  const isMovies = targetMode === "movies";
+  const workspace = state.workspaces[isMovies ? "movies" : "games"];
+  const listEl = isMovies ? dom.movieMatchesList : dom.gameMatchesList;
+  const countEl = isMovies ? dom.movieMatchesCount : dom.gameMatchesCount;
+  const panelEl = isMovies ? dom.movieMatchesPanel : dom.gameMatchesPanel;
+  const feedbackEl = isMovies ? dom.movieSearchFeedback : dom.gameSearchFeedback;
 
-  const response = await fetchWithCorsFallback("https://api.igdb.com/v4/games", {
-    method: "POST",
-    headers: {
-      "Client-ID": API_CONFIG.IGDB_CLIENT_ID.trim(),
-      "Authorization": "Bearer " + token,
-      "Accept": "application/json",
-      "Content-Type": "text/plain"
-    },
-    body: apicalypseQuery
-  });
+  listEl.innerHTML = "";
+  countEl.textContent = String(workspace.searchMatches.length);
 
-  if (!response.ok) {
-    throw new Error("IGDB v4 request returned HTTP " + response.status + ".");
-  }
-
-  const results = await response.json();
-  if (!Array.isArray(results)) {
-    return [];
-  }
-
-  return results.map(function mapIgdbRecord(item) {
-    let posterUrl = ICON_PLACEHOLDERS.FALLBACK_POSTER;
-    if (item.cover && item.cover.image_id) {
-      posterUrl = "https://images.igdb.com/igdb/image/upload/t_cover_big/" + item.cover.image_id + ".jpg";
-    } else if (item.cover && item.cover.url) {
-      const rawUrl = item.cover.url.indexOf("//") === 0 ? "https:" + item.cover.url : item.cover.url;
-      posterUrl = rawUrl.replace("t_thumb", "t_cover_big");
-    }
-
-    let releaseYear = "";
-    if (item.first_release_date) {
-      releaseYear = String(new Date(item.first_release_date * 1000).getUTCFullYear());
-    }
-
-    return {
-      id: "igdb-" + item.id,
-      name: item.name || "Unknown Title",
-      year: releaseYear,
-      imageUrl: posterUrl,
-      backupUrl: "",
-      source: "igdb"
-    };
-  });
-}
-
-function searchOfflineReferenceCatalog(query) {
-  const q = query.trim().toLowerCase();
-  const directMatches = DEFAULT_COMPOSER_CATALOG.filter(function matchItem(item) {
-    return item.name.toLowerCase().indexOf(q) !== -1;
-  });
-
-  if (directMatches.length > 0) {
-    return directMatches;
-  }
-
-  // If user typed a title not in the 24-entry local set while testing without keys,
-  // provide a custom placeholder poster entry alongside close catalog suggestions so confirmation can still be tested.
-  return [
-    {
-      id: makeId("custom"),
-      name: query.trim(),
-      year: "Custom",
-      imageUrl: ICON_PLACEHOLDERS.FALLBACK_POSTER,
-      backupUrl: "",
-      source: "placeholder"
-    }
-  ].concat(DEFAULT_COMPOSER_CATALOG.slice(0, 4));
-}
-
-function renderSearchMatches() {
-  dom.igdbMatchesList.innerHTML = "";
-  dom.matchesCount.textContent = String(state.searchMatches.length);
-  dom.selectedMatchesCount.textContent = String(state.selectedMatchIds.size);
-  dom.confirmSelectedMatchesBtn.disabled = state.selectedMatchIds.size === 0;
-
-  if (state.searchMatches.length === 0) {
-    dom.igdbMatchesPanel.hidden = true;
+  if (workspace.searchMatches.length === 0) {
+    panelEl.hidden = true;
     return;
   }
 
-  dom.igdbMatchesPanel.hidden = false;
+  panelEl.hidden = false;
 
-  for (let i = 0; i < state.searchMatches.length; i += 1) {
-    const match = state.searchMatches[i];
-    const isChecked = state.selectedMatchIds.has(match.id);
-    const alreadyAdded = isGameAlreadyPresent(match.id, match.name);
+  for (let i = 0; i < workspace.searchMatches.length; i += 1) {
+    const match = workspace.searchMatches[i];
+    const alreadyAdded = isItemAlreadyPresent(workspace, match.id, match.name);
 
     const li = document.createElement("li");
-    li.className = "match-card" + (isChecked ? " is-selected" : "");
+    li.className = "match-card";
 
     const thumb = document.createElement("img");
     thumb.className = "match-thumb";
-    thumb.src = match.imageUrl || ICON_PLACEHOLDERS.FALLBACK_POSTER;
     thumb.alt = match.name;
     thumb.loading = "lazy";
-    attachPosterFallbacks(thumb, match);
+    const onThumbError = attachPosterFallbacks(thumb, match);
+    thumb.src = match.imageUrl || PLACEHOLDER_IMAGE_SRC;
+    if (thumb.complete && thumb.naturalWidth === 0 && thumb.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+      onThumbError();
+    }
 
     const meta = document.createElement("div");
     meta.className = "match-meta";
@@ -1161,364 +1177,396 @@ function renderSearchMatches() {
     titleEl.textContent = match.name;
     titleEl.title = match.name;
 
-    const yearEl = document.createElement("span");
-    yearEl.className = "match-year";
-    yearEl.textContent = match.year ? "Release: " + match.year : "Release: N/A";
+    const dateEl = document.createElement("span");
+    dateEl.className = "match-date";
+    dateEl.textContent = match.releaseDate ? match.releaseDate : "Release date unavailable";
 
     const controls = document.createElement("div");
     controls.className = "match-controls";
 
-    const checkLabel = document.createElement("label");
-    checkLabel.className = "match-check-label";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = isChecked;
-    checkbox.disabled = alreadyAdded;
-    checkbox.addEventListener("change", function onToggleSelect() {
-      if (checkbox.checked) {
-        state.selectedMatchIds.add(match.id);
-      } else {
-        state.selectedMatchIds.delete(match.id);
-      }
-      renderSearchMatches();
-    });
-
-    const checkText = document.createElement("span");
-    checkText.textContent = "Select";
-    checkLabel.appendChild(checkbox);
-    checkLabel.appendChild(checkText);
-
-    const confirmBtn = document.createElement("button");
-    confirmBtn.type = "button";
-    confirmBtn.className = "ide-btn ide-btn-compact ide-btn-primary";
-    confirmBtn.textContent = alreadyAdded ? "Added" : "Confirm Add";
-    confirmBtn.disabled = alreadyAdded;
-    confirmBtn.addEventListener("click", function onConfirmSingle() {
-      const outcome = addGamesToCandidates([match]);
-      state.selectedMatchIds.delete(match.id);
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "ide-btn ide-btn-compact ide-btn-primary";
+    addBtn.textContent = alreadyAdded ? "Added" : "Add";
+    addBtn.disabled = alreadyAdded;
+    addBtn.addEventListener("click", function onAddMatch() {
+      const outcome = addItemsToCandidates([match], targetMode);
       if (outcome.addedCount > 0) {
-        showToolFeedback(dom.igdbFeedback, 'Added "' + match.name + '" poster to Candidates.', "ok");
-        setStatus('Confirmed IGDB match "' + match.name + '"');
+        showToolFeedback(feedbackEl, 'Added "' + match.name + '" poster to Candidates.', "ok");
+        setStatus('Added "' + match.name + '" to ' + (isMovies ? "Movies" : "Games") + " Candidates");
       }
-      renderSearchMatches();
+      renderModeSearchMatches(targetMode);
     });
 
-    controls.appendChild(checkLabel);
-    controls.appendChild(confirmBtn);
+    controls.appendChild(addBtn);
 
     meta.appendChild(titleEl);
-    meta.appendChild(yearEl);
+    meta.appendChild(dateEl);
     meta.appendChild(controls);
 
     li.appendChild(thumb);
     li.appendChild(meta);
-    dom.igdbMatchesList.appendChild(li);
+    listEl.appendChild(li);
   }
 }
 
-async function handleIgdbSearchSubmit(event) {
+async function queryCheapSharkGames(searchTerm) {
+  const encodedTitle = encodeURIComponent(searchTerm);
+  const gamesUrl = API_CONFIG.CHEAPSHARK_GAMES_ENDPOINT + "?title=" + encodedTitle + "&limit=16";
+  const dealsUrl = API_CONFIG.CHEAPSHARK_DEALS_ENDPOINT + "?title=" + encodedTitle + "&pageSize=60";
+
+  const responses = await Promise.all([
+    fetch(gamesUrl),
+    fetch(dealsUrl).catch(function ignoreDealsFailure() {
+      return null;
+    })
+  ]);
+
+  const gamesResponse = responses[0];
+  const dealsResponse = responses[1];
+
+  if (!gamesResponse.ok) {
+    throw new Error("CheapShark request returned HTTP " + gamesResponse.status + ".");
+  }
+
+  const results = await gamesResponse.json();
+  if (!Array.isArray(results)) {
+    return [];
+  }
+
+  const releaseByGameId = new Map();
+  const releaseByAppId = new Map();
+  const releaseByInternal = new Map();
+
+  if (dealsResponse && dealsResponse.ok) {
+    try {
+      const deals = await dealsResponse.json();
+      if (Array.isArray(deals)) {
+        for (let i = 0; i < deals.length; i += 1) {
+          const deal = deals[i];
+          const ts = Number(deal && deal.releaseDate);
+          if (ts > 0) {
+            if (deal.gameID && !releaseByGameId.has(String(deal.gameID))) {
+              releaseByGameId.set(String(deal.gameID), ts);
+            }
+            if (deal.steamAppID && !releaseByAppId.has(String(deal.steamAppID))) {
+              releaseByAppId.set(String(deal.steamAppID), ts);
+            }
+            if (deal.internalName && !releaseByInternal.has(String(deal.internalName).toUpperCase())) {
+              releaseByInternal.set(String(deal.internalName).toUpperCase(), ts);
+            }
+          }
+        }
+      }
+    } catch (dealsParseErr) {
+      // Release dates remain optional if deals payload cannot be parsed
+    }
+  }
+
+  return results.map(function mapCheapSharkRecord(item) {
+    const title = item.external || "Unknown Title";
+    const rawReleaseTs =
+      releaseByGameId.get(String(item.gameID)) ||
+      (item.steamAppID ? releaseByAppId.get(String(item.steamAppID)) : 0) ||
+      (item.internalName ? releaseByInternal.get(String(item.internalName).toUpperCase()) : 0) ||
+      Number(item.releaseDate) ||
+      0;
+    const formattedDate = formatUnixReleaseDate(rawReleaseTs);
+
+    if (item.steamAppID) {
+      const urls = gameCoverUrls(item.steamAppID);
+      return {
+        id: "game-" + item.steamAppID,
+        mediaType: "game",
+        name: title,
+        year: formattedDate,
+        releaseDate: formattedDate,
+        imageUrl: urls.primary,
+        backupUrl: item.thumb || urls.secondary,
+        source: "cheapshark"
+      };
+    }
+
+    return {
+      id: "cs-" + item.gameID,
+      mediaType: "game",
+      name: title,
+      year: formattedDate,
+      releaseDate: formattedDate,
+      imageUrl: item.thumb || PLACEHOLDER_IMAGE_SRC,
+      backupUrl: "",
+      source: "cheapshark"
+    };
+  });
+}
+
+async function handleGameSearchSubmit(event) {
   event.preventDefault();
-  const query = dom.igdbQueryInput.value.trim();
+  const query = dom.gameQueryInput.value.trim();
   if (!query) {
-    showToolFeedback(dom.igdbFeedback, "Enter a video game title to search.", "warn");
-    dom.igdbQueryInput.focus();
+    showToolFeedback(dom.gameSearchFeedback, "Enter a video game title to search.", "warn");
+    dom.gameQueryInput.focus();
     return;
   }
 
-  dom.igdbSearchBtn.disabled = true;
-  dom.igdbSearchBtn.textContent = "Searching...";
-  state.selectedMatchIds.clear();
+  dom.gameSearchBtn.disabled = true;
+  dom.gameSearchBtn.textContent = "Searching...";
 
   try {
-    if (!hasIgdbCredentials()) {
-      state.searchMatches = searchOfflineReferenceCatalog(query);
-      showToolFeedback(
-        dom.igdbFeedback,
-        "IGDB API placeholder credentials detected in script.js. Showing reference catalog matches so you can confirm and test selection.",
-        "warn"
-      );
-      setStatus("IGDB search ran in placeholder catalog mode");
-      renderSearchMatches();
-      return;
-    }
-
-    const matches = await queryIgdbGames(query);
-    state.searchMatches = matches;
+    const matches = await queryCheapSharkGames(query);
+    state.workspaces.games.searchMatches = matches;
     if (matches.length === 0) {
-      showToolFeedback(dom.igdbFeedback, 'No IGDB matches found for "' + query + '".', "warn");
+      showToolFeedback(dom.gameSearchFeedback, 'No CheapShark matches found for "' + query + '".', "warn");
     } else {
       showToolFeedback(
-        dom.igdbFeedback,
-        "Found " + matches.length + ' match(es) on IGDB for "' + query + '". Confirm one or select several below.',
+        dom.gameSearchFeedback,
+        "Found " + matches.length + ' match(es) on CheapShark for "' + query + '". Click Add on any match below.',
         "ok"
       );
     }
-    setStatus("IGDB returned " + matches.length + " match(es)");
-    renderSearchMatches();
+    setStatus("CheapShark returned " + matches.length + " game match(es)");
+    renderModeSearchMatches("games");
   } catch (err) {
-    state.searchMatches = searchOfflineReferenceCatalog(query);
+    state.workspaces.games.searchMatches = [];
+    renderModeSearchMatches("games");
     showToolFeedback(
-      dom.igdbFeedback,
-      "IGDB request failed (" + err.message + "). Loaded offline fallback matches instead.",
+      dom.gameSearchFeedback,
+      "CheapShark request failed (" + err.message + ").",
       "error"
     );
-    setStatus("IGDB error; fallback matches shown");
-    renderSearchMatches();
+    setStatus("CheapShark search failed");
   } finally {
-    dom.igdbSearchBtn.disabled = false;
-    dom.igdbSearchBtn.textContent = "Search";
+    dom.gameSearchBtn.disabled = false;
+    dom.gameSearchBtn.textContent = "Search";
   }
 }
 
-function handleConfirmSelectedMatches() {
-  const chosen = state.searchMatches.filter(function isChosen(m) {
-    return state.selectedMatchIds.has(m.id);
-  });
-  if (chosen.length === 0) {
-    return;
-  }
-  const outcome = addGamesToCandidates(chosen);
-  state.selectedMatchIds.clear();
+function handleLoadGameDefaults() {
+  const outcome = addItemsToCandidates(DEFAULT_GAME_CATALOG, "games");
+  renderModeSearchMatches("games");
   showToolFeedback(
-    dom.igdbFeedback,
-    "Added " + outcome.addedCount + " selected game poster(s) to Candidates.",
+    dom.gameSearchFeedback,
+    "Loaded " +
+      outcome.addedCount +
+      " default game(s) into Candidates" +
+      (outcome.skippedCount > 0 ? " (" + outcome.skippedCount + " already present)." : "."),
     "ok"
   );
-  setStatus("Added " + outcome.addedCount + " game(s) from search matches");
-  renderSearchMatches();
+  setStatus("Loaded " + outcome.addedCount + " default game(s) into Candidates");
 }
 
 /* ==========================================================================
-   10. STEAM COMMUNITY LINK IMPORT (WITH PRIVATE PROFILE ERROR & DEFAULTS)
+   10. TMDB MOVIE SEARCH & 24 RANDOM POPULAR MOVIES (MOVIES MODE)
    ========================================================================== */
-function parseSteamCommunityInput(rawInput) {
-  const input = String(rawInput || "").trim();
-  if (!input) {
-    return { valid: false, reason: "Enter a Steam Community profile URL (e.g. https://steamcommunity.com/id/yourname)." };
+async function fetchTmdbJson(endpointPath, paramsObj) {
+  const rawCredential = String(API_CONFIG.TMDB_API_KEY || "").trim();
+  if (!rawCredential) {
+    throw new Error("Missing TMDB API key in API_CONFIG.TMDB_API_KEY.");
   }
 
-  // Raw 17-digit SteamID64
-  if (/^\d{17}$/.test(input)) {
-    return { valid: true, type: "steamid", value: input };
+  const cleanToken = rawCredential.replace(/^Bearer\s+/i, "").trim();
+  const isBearerJwt = cleanToken.indexOf("eyJ") === 0 || cleanToken.split(".").length === 3;
+
+  const pairs = [];
+  const keys = Object.keys(paramsObj || {});
+  for (let i = 0; i < keys.length; i += 1) {
+    const k = keys[i];
+    if (paramsObj[k] !== undefined && paramsObj[k] !== null && paramsObj[k] !== "") {
+      pairs.push(encodeURIComponent(k) + "=" + encodeURIComponent(String(paramsObj[k])));
+    }
   }
 
-  // Standard /profiles/<17-digit-id>
-  const profileMatch = input.match(/steamcommunity\.com\/profiles\/(\d{17})(?:[/?#]|$)/i);
-  if (profileMatch) {
-    return { valid: true, type: "steamid", value: profileMatch[1] };
+  if (!isBearerJwt) {
+    pairs.push("api_key=" + encodeURIComponent(cleanToken));
   }
 
-  // Custom vanity URL /id/<vanity>
-  const vanityMatch = input.match(/steamcommunity\.com\/id\/([^/?#\s]+)(?:[/?#]|$)/i);
-  if (vanityMatch) {
-    return { valid: true, type: "vanity", value: decodeURIComponent(vanityMatch[1]) };
+  const url = API_CONFIG.TMDB_BASE_URL + endpointPath + (pairs.length > 0 ? "?" + pairs.join("&") : "");
+  const headers = { Accept: "application/json" };
+  if (isBearerJwt) {
+    headers.Authorization = "Bearer " + cleanToken;
   }
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: headers
+  });
+
+  if (!response.ok) {
+    throw new Error("TMDB returned HTTP " + response.status + ".");
+  }
+
+  return response.json();
+}
+
+function mapTmdbMovieRecord(item) {
+  const title = String((item && (item.title || item.original_title)) || "Untitled Movie").trim();
+  const formattedDate = formatTmdbReleaseDate(item && item.release_date);
+  const posterPath = item && item.poster_path ? String(item.poster_path) : "";
+  const primaryUrl = posterPath
+    ? API_CONFIG.TMDB_IMAGE_BASE + posterPath
+    : PLACEHOLDER_IMAGE_SRC;
+  const backupUrl = posterPath
+    ? API_CONFIG.TMDB_IMAGE_BACKUP_BASE + posterPath
+    : "";
 
   return {
-    valid: false,
-    reason:
-      "Unrecognized Steam link format. Expected https://steamcommunity.com/id/<vanity> or https://steamcommunity.com/profiles/<17-digit-steamid>."
+    id: "tmdb-" + item.id,
+    mediaType: "movie",
+    name: title,
+    year: formattedDate,
+    releaseDate: formattedDate,
+    imageUrl: primaryUrl,
+    backupUrl: backupUrl,
+    source: "tmdb"
   };
 }
 
-async function resolveSteamId64(parsedProfile, apiKey) {
-  if (parsedProfile.type === "steamid") {
-    return parsedProfile.value;
-  }
+async function queryTmdbMovies(searchTerm) {
+  const payload = await fetchTmdbJson("/search/movie", {
+    query: searchTerm,
+    include_adult: "false",
+    language: "en-US",
+    page: 1
+  });
 
-  const resolveUrl =
-    "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key=" +
-    encodeURIComponent(apiKey) +
-    "&vanityurl=" +
-    encodeURIComponent(parsedProfile.value);
-
-  const response = await fetchWithCorsFallback(resolveUrl);
-  if (!response.ok) {
-    throw new Error("Steam ResolveVanityURL failed (HTTP " + response.status + ").");
-  }
-
-  const payload = await response.json();
-  if (!payload || !payload.response || payload.response.success !== 1 || !payload.response.steamid) {
-    throw new Error('Steam vanity profile "' + parsedProfile.value + '" was not found.');
-  }
-
-  return payload.response.steamid;
+  const results = payload && Array.isArray(payload.results) ? payload.results : [];
+  return results.slice(0, 16).map(mapTmdbMovieRecord);
 }
 
-async function checkSteamProfileVisibility(steamId64, apiKey) {
-  const summaryUrl =
-    "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=" +
-    encodeURIComponent(apiKey) +
-    "&steamids=" +
-    encodeURIComponent(steamId64);
-
-  const response = await fetchWithCorsFallback(summaryUrl);
-  if (!response.ok) {
-    return { exists: true, isPublic: true, personaName: "" };
-  }
-
-  const data = await response.json();
-  const players = data && data.response && Array.isArray(data.response.players) ? data.response.players : [];
-  if (players.length === 0) {
-    return { exists: false, isPublic: false, personaName: "" };
-  }
-
-  const player = players[0];
-  // Steam communityvisibilitystate: 3 = Public; 1 or 2 = Private / Friends-Only
-  return {
-    exists: true,
-    isPublic: player.communityvisibilitystate === 3,
-    personaName: player.personaname || ""
-  };
-}
-
-function loadDefaultFallbackGamesIntoCandidates() {
-  const outcome = addGamesToCandidates(DEFAULT_COMPOSER_CATALOG);
-  return outcome;
-}
-
-async function handleSteamImportSubmit(event) {
+async function handleMovieSearchSubmit(event) {
   event.preventDefault();
-  const parsed = parseSteamCommunityInput(dom.steamLinkInput.value);
-  if (!parsed.valid) {
-    showToolFeedback(dom.steamFeedback, parsed.reason, "error");
-    dom.steamLinkInput.focus();
+  const query = dom.movieQueryInput.value.trim();
+  if (!query) {
+    showToolFeedback(dom.movieSearchFeedback, "Enter a movie title to search.", "warn");
+    dom.movieQueryInput.focus();
     return;
   }
 
-  if (!hasSteamCredentials()) {
-    const fallbackOutcome = loadDefaultFallbackGamesIntoCandidates();
-    showToolFeedback(
-      dom.steamFeedback,
-      "STEAM_API_KEY in script.js is still set to its placeholder. Loaded " +
-        fallbackOutcome.addedCount +
-        " default composer reference game(s) into Candidates until your Steam Web API key is added.",
-      "warn"
-    );
-    setStatus("Steam placeholder key detected; loaded default candidates");
-    return;
-  }
-
-  dom.steamImportBtn.disabled = true;
-  dom.steamImportBtn.textContent = "Pulling...";
+  dom.movieSearchBtn.disabled = true;
+  dom.movieSearchBtn.textContent = "Searching...";
 
   try {
-    const apiKey = API_CONFIG.STEAM_API_KEY.trim();
-    const steamId64 = await resolveSteamId64(parsed, apiKey);
-    const visibility = await checkSteamProfileVisibility(steamId64, apiKey);
-
-    if (!visibility.exists) {
-      const outcome = loadDefaultFallbackGamesIntoCandidates();
+    const matches = await queryTmdbMovies(query);
+    state.workspaces.movies.searchMatches = matches;
+    if (matches.length === 0) {
+      showToolFeedback(dom.movieSearchFeedback, 'No TMDB matches found for "' + query + '".', "warn");
+    } else {
       showToolFeedback(
-        dom.steamFeedback,
-        "No Steam account exists for ID " +
-          steamId64 +
-          ". Loaded " +
-          outcome.addedCount +
-          " default game(s) into Candidates instead.",
-        "error"
+        dom.movieSearchFeedback,
+        "Found " + matches.length + ' match(es) on TMDB for "' + query + '". Click Add on any match below.',
+        "ok"
       );
-      setStatus("Steam profile not found; default games loaded");
-      return;
     }
-
-    if (!visibility.isPublic) {
-      const outcome = loadDefaultFallbackGamesIntoCandidates();
-      const label = visibility.personaName ? ' ("' + visibility.personaName + '")' : "";
-      showToolFeedback(
-        dom.steamFeedback,
-        "Steam profile" +
-          label +
-          " is set to Private. Steam Web API cannot access private libraries; loaded " +
-          outcome.addedCount +
-          " default game(s) into Candidates.",
-        "warn"
-      );
-      setStatus("Private Steam profile detected; loaded default games");
-      return;
-    }
-
-    const ownedUrl =
-      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=" +
-      encodeURIComponent(apiKey) +
-      "&steamid=" +
-      encodeURIComponent(steamId64) +
-      "&include_appinfo=1&include_played_free_games=1&format=json";
-
-    const ownedRes = await fetchWithCorsFallback(ownedUrl);
-    if (!ownedRes.ok) {
-      throw new Error("Steam GetOwnedGames returned HTTP " + ownedRes.status + ".");
-    }
-
-    const ownedData = await ownedRes.json();
-    const rawGames = ownedData && ownedData.response ? ownedData.response.games : undefined;
-
-    // Note: Steam returns an empty response object {} when "Game details" privacy is set to Private/Friends-Only
-    if (!Array.isArray(rawGames) || rawGames.length === 0) {
-      const outcome = loadDefaultFallbackGamesIntoCandidates();
-      showToolFeedback(
-        dom.steamFeedback,
-        "Steam Game Details are hidden/private (or library has 0 visible games). Loaded " +
-          outcome.addedCount +
-          " default game(s) into Candidates as fallback.",
-        "warn"
-      );
-      setStatus("Hidden Steam game details; default games loaded");
-      return;
-    }
-
-    const sortedSteamGames = rawGames
-      .slice()
-      .sort(function byPlaytimeThenName(a, b) {
-        const diff = (b.playtime_forever || 0) - (a.playtime_forever || 0);
-        if (diff !== 0) {
-          return diff;
-        }
-        return String(a.name || "").localeCompare(String(b.name || ""));
-      })
-      .map(function mapSteamGame(g) {
-        const urls = steamPosterUrls(g.appid);
-        return {
-          id: "steam-" + g.appid,
-          name: g.name || "Steam App " + g.appid,
-          year: "",
-          imageUrl: urls.primary,
-          backupUrl: urls.secondary,
-          source: "steam"
-        };
-      });
-
-    const outcome = addGamesToCandidates(sortedSteamGames);
-    showToolFeedback(
-      dom.steamFeedback,
-      "Pulled Steam library successfully: added " +
-        outcome.addedCount +
-        " game(s) to Candidates" +
-        (outcome.skippedCount > 0 ? " (" + outcome.skippedCount + " duplicates skipped)." : "."),
-      "ok"
-    );
-    setStatus("Imported " + outcome.addedCount + " game(s) from Steam library");
+    setStatus("TMDB returned " + matches.length + " movie match(es)");
+    renderModeSearchMatches("movies");
   } catch (err) {
-    const outcome = loadDefaultFallbackGamesIntoCandidates();
+    state.workspaces.movies.searchMatches = [];
+    renderModeSearchMatches("movies");
     showToolFeedback(
-      dom.steamFeedback,
-      "Steam import error (" +
-        err.message +
-        "). Loaded " +
-        outcome.addedCount +
-        " default reference game(s) into Candidates.",
+      dom.movieSearchFeedback,
+      "TMDB request failed (" + err.message + ").",
       "error"
     );
-    setStatus("Steam API error; default games loaded");
+    setStatus("TMDB search failed");
   } finally {
-    dom.steamImportBtn.disabled = false;
-    dom.steamImportBtn.textContent = "Pull Library";
+    dom.movieSearchBtn.disabled = false;
+    dom.movieSearchBtn.textContent = "Search";
+  }
+}
+
+async function fetchRandomPopularTmdbMovies(count) {
+  const targetCount = count || 24;
+  const pagePool = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  for (let i = pagePool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const swap = pagePool[i];
+    pagePool[i] = pagePool[j];
+    pagePool[j] = swap;
+  }
+
+  // Query 3 random popular pages (up to 60 popular movies) and pick 24 at random
+  const chosenPages = pagePool.slice(0, 3);
+  const payloads = await Promise.all(
+    chosenPages.map(function requestPopularPage(pageNumber) {
+      return fetchTmdbJson("/movie/popular", {
+        language: "en-US",
+        page: pageNumber
+      });
+    })
+  );
+
+  const seenIds = new Set();
+  const mappedPool = [];
+  for (let p = 0; p < payloads.length; p += 1) {
+    const list = payloads[p] && Array.isArray(payloads[p].results) ? payloads[p].results : [];
+    for (let m = 0; m < list.length; m += 1) {
+      const rawMovie = list[m];
+      if (rawMovie && rawMovie.id && !seenIds.has(rawMovie.id)) {
+        seenIds.add(rawMovie.id);
+        mappedPool.push(mapTmdbMovieRecord(rawMovie));
+      }
+    }
+  }
+
+  for (let k = mappedPool.length - 1; k > 0; k -= 1) {
+    const r = Math.floor(Math.random() * (k + 1));
+    const tmp = mappedPool[k];
+    mappedPool[k] = mappedPool[r];
+    mappedPool[r] = tmp;
+  }
+
+  const moviesWs = state.workspaces.movies;
+  const unseen = [];
+  const alreadyPresent = [];
+  for (let n = 0; n < mappedPool.length; n += 1) {
+    if (isItemAlreadyPresent(moviesWs, mappedPool[n].id, mappedPool[n].name)) {
+      alreadyPresent.push(mappedPool[n]);
+    } else {
+      unseen.push(mappedPool[n]);
+    }
+  }
+
+  return unseen.concat(alreadyPresent).slice(0, targetCount);
+}
+
+async function handleLoadMovieDefaults() {
+  dom.loadMovieDefaultsBtn.disabled = true;
+  dom.loadMovieDefaultsBtn.textContent = "Loading...";
+
+  try {
+    const randomPopularMovies = await fetchRandomPopularTmdbMovies(24);
+    if (randomPopularMovies.length === 0) {
+      showToolFeedback(dom.movieSearchFeedback, "TMDB returned 0 popular movies.", "warn");
+      setStatus("TMDB returned 0 popular movies");
+      return;
+    }
+
+    const outcome = addItemsToCandidates(randomPopularMovies, "movies");
+    renderModeSearchMatches("movies");
+    showToolFeedback(
+      dom.movieSearchFeedback,
+      "Loaded " +
+        outcome.addedCount +
+        " random popular movie(s) from TMDB into Candidates" +
+        (outcome.skippedCount > 0 ? " (" + outcome.skippedCount + " already present)." : "."),
+      "ok"
+    );
+    setStatus("Loaded " + outcome.addedCount + " random popular movie(s) from TMDB");
+  } catch (err) {
+    showToolFeedback(
+      dom.movieSearchFeedback,
+      "TMDB Load Defaults failed (" + err.message + ").",
+      "error"
+    );
+    setStatus("TMDB Load Defaults failed");
+  } finally {
+    dom.loadMovieDefaultsBtn.disabled = false;
+    dom.loadMovieDefaultsBtn.textContent = "Load Defaults";
   }
 }
 
 /* ==========================================================================
-   11. LOCALSTORAGE PERSISTENCE (SAVE MULTIPLE TIER LISTS & LOAD)
+   11. LOCALSTORAGE PERSISTENCE (SAVE & LOAD MODE-TAGGED TIER LISTS)
    ========================================================================== */
 function readSavedTierLists() {
   try {
@@ -1543,25 +1591,58 @@ function writeSavedTierLists(listsArray) {
   }
 }
 
+function sanitizeItemsForMode(itemsArray, modeKey) {
+  if (!Array.isArray(itemsArray)) {
+    return [];
+  }
+  const requiredType = expectedMediaTypeForMode(modeKey);
+  const clean = [];
+  for (let i = 0; i < itemsArray.length; i += 1) {
+    const item = itemsArray[i];
+    if (!item) {
+      continue;
+    }
+    if (item.mediaType && item.mediaType !== requiredType) {
+      continue;
+    }
+    clean.push({
+      id: item.id || makeId(requiredType),
+      mediaType: requiredType,
+      name: String(item.name || "Untitled"),
+      year: item.year ? String(item.year) : "",
+      releaseDate: item.releaseDate ? String(item.releaseDate) : "",
+      imageUrl: item.imageUrl || PLACEHOLDER_IMAGE_SRC,
+      backupUrl: item.backupUrl || "",
+      source: item.source || modeKey
+    });
+  }
+  return clean;
+}
+
 function cloneSerializableState(customTitle, forceNewSlot) {
-  const cleanTitle = String(customTitle || state.title || "Untitled Tier List").trim() || "Untitled Tier List";
+  const workspace = getActiveWorkspace();
+  const cleanTitle =
+    String(customTitle || workspace.title || defaultTitleForMode(state.mode)).trim() ||
+    defaultTitleForMode(state.mode);
   const shouldReuseSlot =
     !forceNewSlot &&
-    Boolean(state.activeSlotId) &&
-    state.lastSavedTitle === cleanTitle;
+    Boolean(workspace.activeSlotId) &&
+    workspace.lastSavedTitle === cleanTitle;
 
-  const slotId = shouldReuseSlot ? state.activeSlotId : makeId("slot");
+  const slotId = shouldReuseSlot ? workspace.activeSlotId : makeId("slot");
   return {
     slotId: slotId,
+    mediaMode: state.mode,
     title: cleanTitle,
-    orientation: state.orientation,
-    tiers: JSON.parse(JSON.stringify(state.tiers)),
-    candidates: JSON.parse(JSON.stringify(state.candidates)),
+    orientation: workspace.orientation,
+    tiers: JSON.parse(JSON.stringify(workspace.tiers)),
+    candidates: JSON.parse(JSON.stringify(workspace.candidates)),
     updatedAt: new Date().toISOString()
   };
 }
 
 function saveCurrentTierList(customTitle, forceNewSlot) {
+  const workspace = getActiveWorkspace();
   const snapshot = cloneSerializableState(customTitle, forceNewSlot);
   const lists = readSavedTierLists();
   const existingIdx = lists.findIndex(function findSlot(item) {
@@ -1575,10 +1656,10 @@ function saveCurrentTierList(customTitle, forceNewSlot) {
   }
 
   if (writeSavedTierLists(lists)) {
-    state.activeSlotId = snapshot.slotId;
-    state.lastSavedTitle = snapshot.title;
-    state.title = snapshot.title;
-    setStatus('Saved tier list "' + snapshot.title + '" to localStorage');
+    workspace.activeSlotId = snapshot.slotId;
+    workspace.lastSavedTitle = snapshot.title;
+    workspace.title = snapshot.title;
+    setStatus('Saved ' + state.mode + ' tier list "' + snapshot.title + '" to localStorage');
     renderWorkspace();
     renderSavedListsModal();
   }
@@ -1594,21 +1675,35 @@ function loadSavedTierListById(slotId) {
     return;
   }
 
-  state.activeSlotId = found.slotId;
-  state.lastSavedTitle = found.title;
-  state.title = found.title || "Untitled Tier List";
-  state.orientation = found.orientation === "horizontal" ? "horizontal" : "vertical";
-  state.tiers = Array.isArray(found.tiers) && found.tiers.length > 0
-    ? JSON.parse(JSON.stringify(found.tiers))
+  const slotMode = found.mediaMode === "movies" ? "movies" : "games";
+  const targetWorkspace = state.workspaces[slotMode];
+
+  const loadedTiers = Array.isArray(found.tiers) && found.tiers.length > 0
+    ? found.tiers.map(function sanitizeTier(tier) {
+        return {
+          id: tier.id || makeId("tier"),
+          name: String(tier.name || "Tier"),
+          color: tier.color || "#7d6891",
+          icon: tier.icon || "",
+          iconAlt: tier.iconAlt || "",
+          games: sanitizeItemsForMode(tier.games, slotMode)
+        };
+      })
     : createDefaultTiers();
-  state.candidates = Array.isArray(found.candidates)
-    ? JSON.parse(JSON.stringify(found.candidates))
-    : [];
-  state.candidateFilter = "";
-  dom.candidatesFilterInput.value = "";
+
+  targetWorkspace.activeSlotId = found.slotId;
+  targetWorkspace.lastSavedTitle = found.title;
+  targetWorkspace.title = found.title || defaultTitleForMode(slotMode);
+  targetWorkspace.orientation = found.orientation === "vertical" ? "vertical" : "horizontal";
+  targetWorkspace.tiers = loadedTiers;
+  targetWorkspace.candidates = sanitizeItemsForMode(found.candidates, slotMode);
+  targetWorkspace.candidateFilter = "";
+
+  state.mode = slotMode;
+  dragContext = null;
 
   closeDialog(dom.storageDialog);
-  setStatus('Loaded tier list "' + state.title + '" from localStorage');
+  setStatus('Loaded ' + slotMode + ' tier list "' + targetWorkspace.title + '" from localStorage');
   renderWorkspace();
 }
 
@@ -1622,9 +1717,13 @@ function deleteSavedTierListById(slotId) {
   });
 
   if (writeSavedTierLists(filtered)) {
-    if (state.activeSlotId === slotId) {
-      state.activeSlotId = null;
-      state.lastSavedTitle = null;
+    const modeKeys = ["games", "movies"];
+    for (let i = 0; i < modeKeys.length; i += 1) {
+      const ws = state.workspaces[modeKeys[i]];
+      if (ws.activeSlotId === slotId) {
+        ws.activeSlotId = null;
+        ws.lastSavedTitle = null;
+      }
     }
     if (target) {
       setStatus('Deleted saved list "' + target.title + '" from localStorage');
@@ -1635,14 +1734,19 @@ function deleteSavedTierListById(slotId) {
 }
 
 function renderSavedListsModal() {
+  const activeWs = getActiveWorkspace();
   const lists = readSavedTierLists();
   dom.savedListsUl.innerHTML = "";
   dom.savedListsEmpty.hidden = lists.length > 0;
 
   for (let i = 0; i < lists.length; i += 1) {
     const slot = lists[i];
+    const slotMode = slot.mediaMode === "movies" ? "movies" : "games";
+    const sameMode = slotMode === state.mode;
+    const isActive = sameMode && slot.slotId === activeWs.activeSlotId;
+
     const li = document.createElement("li");
-    li.className = "saved-slot-item" + (slot.slotId === state.activeSlotId ? " is-active-slot" : "");
+    li.className = "saved-slot-item" + (isActive ? " is-active-slot" : "");
 
     const info = document.createElement("div");
     info.className = "saved-slot-info";
@@ -1664,13 +1768,15 @@ function renderSavedListsModal() {
     const metaEl = document.createElement("span");
     metaEl.className = "saved-slot-meta";
     metaEl.textContent =
+      slotMode.toUpperCase() +
+      " | " +
       tierCount +
       " tiers | " +
       rankedCount +
       " ranked | " +
       candCount +
       " candidates | " +
-      (slot.orientation || "vertical") +
+      (slot.orientation || "horizontal") +
       " | Saved: " +
       savedDate;
 
@@ -1692,11 +1798,17 @@ function renderSavedListsModal() {
     overwriteBtn.type = "button";
     overwriteBtn.className = "ide-btn ide-btn-compact";
     overwriteBtn.textContent = "Overwrite";
-    overwriteBtn.title = "Overwrite this slot with the current workspace";
+    overwriteBtn.disabled = !sameMode;
+    overwriteBtn.title = sameMode
+      ? "Overwrite this slot with the current " + state.mode + " workspace"
+      : "Cannot overwrite a " + slotMode + " list while in " + state.mode + " mode";
     overwriteBtn.addEventListener("click", function onOverwriteSlot() {
-      state.activeSlotId = slot.slotId;
-      state.lastSavedTitle = state.title;
-      saveCurrentTierList(state.title, false);
+      if (slotMode !== state.mode) {
+        return;
+      }
+      activeWs.activeSlotId = slot.slotId;
+      activeWs.lastSavedTitle = activeWs.title;
+      saveCurrentTierList(activeWs.title, false);
     });
 
     const delBtn = document.createElement("button");
@@ -1718,7 +1830,7 @@ function renderSavedListsModal() {
 }
 
 /* ==========================================================================
-   12. THEME & ORIENTATION SWITCHING + EVENT WIRING
+   12. MODE, THEME & ORIENTATION SWITCHING + EVENT WIRING
    ========================================================================== */
 function loadInitialTheme() {
   try {
@@ -1729,6 +1841,18 @@ function loadInitialTheme() {
   } catch (err) {
     state.theme = "dark";
   }
+}
+
+function toggleMode() {
+  state.mode = state.mode === "games" ? "movies" : "games";
+  dragContext = null;
+  clearDragHighlights();
+  setStatus(
+    state.mode === "movies"
+      ? "Switched to MOVIES mode"
+      : "Switched to GAMES mode"
+  );
+  renderWorkspace();
 }
 
 function toggleTheme() {
@@ -1743,44 +1867,49 @@ function toggleTheme() {
 }
 
 function toggleOrientation() {
-  state.orientation = state.orientation === "vertical" ? "horizontal" : "vertical";
+  const workspace = getActiveWorkspace();
+  workspace.orientation = workspace.orientation === "horizontal" ? "vertical" : "horizontal";
   setStatus(
-    state.orientation === "vertical"
-      ? "Switched to VERTICAL list (Candidates docked on right)"
-      : "Switched to HORIZONTAL list (Candidates listed below)"
+    workspace.orientation === "horizontal"
+      ? "Switched to HORIZONTAL layout"
+      : "Switched to VERTICAL layout"
   );
   renderWorkspace();
 }
 
 function resetToDefaultTemplate() {
-  state.activeSlotId = null;
-  state.lastSavedTitle = null;
-  state.title = "Video Game Score Tier List";
-  state.orientation = "vertical";
-  state.tiers = createDefaultTiers();
-  state.candidates = [];
-  state.candidateFilter = "";
+  const workspace = getActiveWorkspace();
+  workspace.activeSlotId = null;
+  workspace.lastSavedTitle = null;
+  workspace.title = defaultTitleForMode(state.mode);
+  workspace.orientation = "horizontal";
+  workspace.tiers = createDefaultTiers();
+  workspace.candidates = [];
+  workspace.candidateFilter = "";
+  workspace.searchMatches = [];
   dom.candidatesFilterInput.value = "";
-  setStatus("Reset workspace to default A-F template (Vertical)");
+  clearToolFeedback(state.mode === "movies" ? dom.movieSearchFeedback : dom.gameSearchFeedback);
+  setStatus("Reset " + state.mode + " workspace to default A-F template (Horizontal)");
   renderWorkspace();
 }
 
 function bindEvents() {
   // Top toolbar switches & actions
+  dom.modeSwitch.addEventListener("click", toggleMode);
   dom.orientationSwitch.addEventListener("click", toggleOrientation);
   dom.themeSwitch.addEventListener("click", toggleTheme);
 
-  dom.addRowBtn.addEventListener("click", function onAddRow() {
-    openRowEditorModal(null);
+  dom.addTierBtn.addEventListener("click", function onAddTier() {
+    openTierEditorModal(null);
   });
 
   dom.saveTierlistForm.addEventListener("submit", function onSubmitSave(event) {
     event.preventDefault();
-    saveCurrentTierList(state.title, false);
+    saveCurrentTierList(getActiveWorkspace().title, false);
   });
 
   dom.openStorageBtn.addEventListener("click", function onOpenStorage() {
-    dom.saveAsNameInput.value = state.title;
+    dom.saveAsNameInput.value = getActiveWorkspace().title;
     renderSavedListsModal();
     openDialog(dom.storageDialog);
   });
@@ -1789,109 +1918,124 @@ function bindEvents() {
 
   // Editable list title
   dom.tierlistTitle.addEventListener("input", function onTitleInput() {
-    state.title = dom.tierlistTitle.value;
-    dom.srDocumentHeading.textContent = state.title || "Untitled Video Game Tier List";
-    document.title = (state.title || "Untitled Tier List") + " // CueTier";
+    const workspace = getActiveWorkspace();
+    workspace.title = dom.tierlistTitle.value;
+    dom.srDocumentHeading.textContent = workspace.title || defaultTitleForMode(state.mode);
+    document.title = (workspace.title || defaultTitleForMode(state.mode)) + " // Strata";
   });
 
   dom.tierlistTitle.addEventListener("blur", function onTitleBlur() {
+    const workspace = getActiveWorkspace();
     if (!dom.tierlistTitle.value.trim()) {
-      state.title = "Untitled Game Tier List";
-      dom.tierlistTitle.value = state.title;
+      workspace.title = defaultTitleForMode(state.mode);
+      dom.tierlistTitle.value = workspace.title;
       renderMetricsAndChrome();
     }
   });
 
-  // IGDB search & matches
-  dom.igdbSearchForm.addEventListener("submit", handleIgdbSearchSubmit);
-  dom.confirmSelectedMatchesBtn.addEventListener("click", handleConfirmSelectedMatches);
-  dom.closeMatchesBtn.addEventListener("click", function onCloseMatches() {
-    dom.igdbMatchesPanel.hidden = true;
+  // CheapShark game search & Load Defaults (Games mode)
+  dom.gameSearchForm.addEventListener("submit", handleGameSearchSubmit);
+  wireSearchClearButton(dom.gameQueryInput, dom.clearGameQueryBtn);
+  dom.loadGameDefaultsBtn.addEventListener("click", handleLoadGameDefaults);
+  dom.closeGameMatchesBtn.addEventListener("click", function onCloseGameMatches() {
+    closeSearchMatches("games");
   });
 
-  // Steam import & default catalog button
-  dom.steamImportForm.addEventListener("submit", handleSteamImportSubmit);
-  dom.loadDefaultsBtn.addEventListener("click", function onLoadDefaultsClick() {
-    const outcome = loadDefaultFallbackGamesIntoCandidates();
-    showToolFeedback(
-      dom.steamFeedback,
-      "Loaded " +
-        outcome.addedCount +
-        " default composer reference game(s) into Candidates" +
-        (outcome.skippedCount > 0 ? " (" + outcome.skippedCount + " already present)." : "."),
-      "ok"
-    );
-    setStatus("Loaded " + outcome.addedCount + " default game(s) into Candidates");
+  // TMDB movie search & Load Defaults (Movies mode)
+  dom.movieSearchForm.addEventListener("submit", handleMovieSearchSubmit);
+  wireSearchClearButton(dom.movieQueryInput, dom.clearMovieQueryBtn);
+  dom.loadMovieDefaultsBtn.addEventListener("click", handleLoadMovieDefaults);
+  dom.closeMovieMatchesBtn.addEventListener("click", function onCloseMovieMatches() {
+    closeSearchMatches("movies");
   });
 
-  // Candidates pool dropzone & filter
+  // Candidate pool dropzone & filter
   bindDropZoneEvents(dom.candidatesDropzone, "candidates", null);
 
   dom.candidatesFilterInput.addEventListener("input", function onFilterInput() {
-    state.candidateFilter = dom.candidatesFilterInput.value;
+    getActiveWorkspace().candidateFilter = dom.candidatesFilterInput.value;
+    renderCandidates();
+  });
+  wireSearchClearButton(dom.candidatesFilterInput, dom.clearCandidatesFilterBtn, function onClearCandidateFilter() {
+    getActiveWorkspace().candidateFilter = "";
     renderCandidates();
   });
 
   dom.clearCandidatesBtn.addEventListener("click", function onClearCandidates() {
-    const count = state.candidates.length;
+    const workspace = getActiveWorkspace();
+    const count = workspace.candidates.length;
     if (count === 0) {
       return;
     }
-    state.candidates = [];
-    state.candidateFilter = "";
+    workspace.candidates = [];
+    workspace.candidateFilter = "";
     dom.candidatesFilterInput.value = "";
     setStatus("Cleared " + count + " candidate poster(s)");
     renderWorkspace();
+    renderModeSearchMatches(state.mode);
   });
 
-  // Row editor modal events
-  dom.rowEditorForm.addEventListener("submit", handleSaveRowModal);
-  dom.closeRowModalBtn.addEventListener("click", function onCloseRowModal() {
-    closeDialog(dom.rowEditorDialog);
+  // Tier editor modal events
+  dom.tierEditorForm.addEventListener("submit", handleSaveTierModal);
+  dom.closeTierModalBtn.addEventListener("click", function onCloseTierModal() {
+    closeDialog(dom.tierEditorDialog);
   });
-  dom.cancelRowModalBtn.addEventListener("click", function onCancelRowModal() {
-    closeDialog(dom.rowEditorDialog);
-  });
-
-  dom.rowColorInput.addEventListener("input", function onColorPick() {
-    setRowModalColor(dom.rowColorInput.value);
+  dom.cancelTierModalBtn.addEventListener("click", function onCancelTierModal() {
+    closeDialog(dom.tierEditorDialog);
   });
 
-  dom.rowIconPreset.addEventListener("change", function onPresetIconChange() {
-    dom.rowIconUrl.value = dom.rowIconPreset.value;
-    updateRowModalIconPreview(dom.rowIconPreset.value, dom.rowNameInput.value);
+  dom.tierColorInput.addEventListener("input", function onColorPick() {
+    setTierModalColor(dom.tierColorInput.value);
   });
 
-  dom.rowIconUrl.addEventListener("input", function onCustomIconUrl() {
-    const val = dom.rowIconUrl.value.trim();
-    const matching = ICON_PLACEHOLDERS.TIER_PRESETS.find(function matchP(p) {
-      return p.src === val;
-    });
-    dom.rowIconPreset.value = matching ? matching.src : "";
-    updateRowModalIconPreview(val, dom.rowNameInput.value);
+  dom.tierIconPreset.addEventListener("change", function onPresetIconChange() {
+    state.modalIconValue = dom.tierIconPreset.value;
+    dom.tierIconUrl.value = "";
+    dom.tierIconFile.value = "";
+    updateTierModalIconPreview(state.modalIconValue);
   });
 
-  dom.rowIconFile.addEventListener("change", function onIconFileSelected() {
-    const file = dom.rowIconFile.files && dom.rowIconFile.files[0];
+  dom.tierIconUrl.addEventListener("input", function onCustomIconUrl() {
+    const val = dom.tierIconUrl.value.trim();
+    state.modalIconValue = val;
+    const matching = getPresetByValue(val);
+    dom.tierIconPreset.value = matching ? matching.value : "";
+    dom.tierIconFile.value = "";
+    updateTierModalIconPreview(state.modalIconValue);
+  });
+
+  dom.tierIconFile.addEventListener("change", function onIconFileSelected() {
+    const file = dom.tierIconFile.files && dom.tierIconFile.files[0];
     if (!file) {
       return;
     }
     const reader = new FileReader();
     reader.addEventListener("load", function onFileRead() {
       if (typeof reader.result === "string") {
-        dom.rowIconPreset.value = "";
-        dom.rowIconUrl.value = reader.result;
-        updateRowModalIconPreview(reader.result, dom.rowNameInput.value);
+        state.modalIconValue = reader.result;
+        dom.tierIconPreset.value = "";
+        dom.tierIconUrl.value = "";
+        updateTierModalIconPreview(state.modalIconValue);
       }
     });
     reader.readAsDataURL(file);
   });
 
-  dom.clearRowIconBtn.addEventListener("click", function onClearIcon() {
-    dom.rowIconPreset.value = "";
-    dom.rowIconUrl.value = "";
-    dom.rowIconFile.value = "";
-    updateRowModalIconPreview("", "");
+  dom.tierIconPreview.addEventListener("error", function onTierIconPreviewError() {
+    if (dom.tierIconPreview.hidden || !state.modalIconValue || extractSymbolLigature(state.modalIconValue)) {
+      return;
+    }
+    if (dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+      dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
+    }
+  });
+
+  dom.clearTierIconBtn.addEventListener("click", function onClearIcon() {
+    state.modalIconValue = "";
+    dom.tierIconPreset.value = "";
+    dom.tierIconUrl.value = "";
+    dom.tierIconFile.value = "";
+    updateTierModalIconPreview("");
   });
 
   // Storage dialog events
@@ -1903,7 +2047,8 @@ function bindEvents() {
   });
   dom.saveCopyForm.addEventListener("submit", function onSaveCopySubmit(event) {
     event.preventDefault();
-    const slotTitle = dom.saveAsNameInput.value.trim() || state.title;
+    const workspace = getActiveWorkspace();
+    const slotTitle = dom.saveAsNameInput.value.trim() || workspace.title;
     saveCurrentTierList(slotTitle, true);
   });
 }
@@ -1914,7 +2059,7 @@ function bindEvents() {
 function init() {
   cacheDom();
   loadInitialTheme();
-  initRowEditorControls();
+  initTierEditorControls();
   bindEvents();
   renderWorkspace();
 }
