@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CueTier // Video Game Score Tier List Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alice&family=Nunito:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="ide-topbar">
+    <div class="ide-brand">
+      <span class="ide-app-name">CueTier</span>
+      <span class="ide-divider" aria-hidden="true">|</span>
+      <span class="ide-subtitle">Game Cue &amp; Soundtrack Tier Editor</span>
+    </div>
+
+    <nav class="ide-menubar" aria-label="Workspace actions">
+      <button type="button" id="orientation-switch" class="ide-btn" aria-pressed="false" title="Toggle vertical or horizontal tier layout">
+        Orientation: <strong id="orientation-label">Vertical</strong>
+      </button>
+
+      <button type="button" id="theme-switch" class="ide-btn" aria-pressed="false" title="Switch between Dark and Light mode">
+        Theme: <strong id="theme-label">Dark</strong>
+      </button>
+
+      <button type="button" id="add-row-btn" class="ide-btn ide-btn-accent">
+        + Add Row
+      </button>
+
+      <form id="save-tierlist-form" class="save-inline-form">
+        <button type="submit" id="save-tierlist-btn" class="ide-btn ide-btn-primary">
+          Save List
+        </button>
+      </form>
+
+      <button type="button" id="open-storage-btn" class="ide-btn">
+        Load List (<span id="saved-count">0</span>)
+      </button>
+
+      <button type="button" id="new-template-btn" class="ide-btn" title="Reset workspace to default A to F template">
+        Reset A-F
+      </button>
+    </nav>
+  </header>
+
+  <section class="ide-toolstrip" aria-label="Catalog acquisition tools">
+    <section class="tool-window" aria-labelledby="igdb-panel-heading">
+      <h2 id="igdb-panel-heading" class="tool-heading">IGDB Game Search</h2>
+      <form id="igdb-search-form" class="tool-form" novalidate>
+        <label for="igdb-query-input" class="sr-only">Game title query</label>
+        <input
+          type="search"
+          id="igdb-query-input"
+          class="ide-input"
+          placeholder="Search game title via IGDB (e.g. Hollow Knight, NieR, Celeste)..."
+          autocomplete="off"
+          required
+        >
+        <button type="submit" id="igdb-search-btn" class="ide-btn ide-btn-accent">
+          Search
+        </button>
+      </form>
+      <p id="igdb-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
+
+      <section id="igdb-matches-panel" class="matches-drawer" aria-labelledby="matches-heading" hidden>
+        <header class="matches-header">
+          <h3 id="matches-heading" class="matches-title">Search Matches (<span id="matches-count">0</span>)</h3>
+          <div class="matches-actions">
+            <button type="button" id="confirm-selected-matches-btn" class="ide-btn ide-btn-primary">
+              Add Selected (<span id="selected-matches-count">0</span>)
+            </button>
+            <button type="button" id="close-matches-btn" class="ide-btn">
+              Close
+            </button>
+          </div>
+        </header>
+        <ul id="igdb-matches-list" class="matches-list" aria-label="IGDB game matches"></ul>
+      </section>
+    </section>
+
+    <section class="tool-window" aria-labelledby="steam-panel-heading">
+      <h2 id="steam-panel-heading" class="tool-heading">Steam Library Import</h2>
+      <form id="steam-import-form" class="tool-form" novalidate>
+        <label for="steam-link-input" class="sr-only">Steam Community profile URL</label>
+        <input
+          type="url"
+          id="steam-link-input"
+          class="ide-input"
+          placeholder="https://steamcommunity.com/id/composer or /profiles/76561198..."
+          autocomplete="off"
+          required
+        >
+        <button type="submit" id="steam-import-btn" class="ide-btn ide-btn-accent">
+          Pull Library
+        </button>
+        <button type="button" id="load-defaults-btn" class="ide-btn" title="Populate candidate pool with default composer reference games">
+          Load Defaults
+        </button>
+      </form>
+      <p id="steam-feedback" class="tool-feedback" role="status" aria-live="polite" hidden></p>
+    </section>
+  </section>
+
+  <main id="workspace-main" class="ide-workspace" data-orientation="vertical">
+    <header class="document-header">
+      <div class="document-title-group">
+        <h1 id="sr-document-heading" class="sr-only">Video Game Score Tier List</h1>
+        <label for="tierlist-title" class="document-tab-tag">list_title:</label>
+        <input
+          type="text"
+          id="tierlist-title"
+          class="tierlist-title-input"
+          value="Video Game Score Tier List"
+          maxlength="120"
+          aria-label="Editable tier list title"
+          spellcheck="false"
+        >
+      </div>
+      <p class="document-hint">
+        Drag game posters between tiers and the candidate pool. Click Edit on any row to change name, color, or icon.
+      </p>
+    </header>
+
+    <div id="board-split" class="board-split">
+      <section class="tiers-region" aria-label="Tier list">
+        <ol id="tier-rows-list" class="tier-rows-list"></ol>
+      </section>
+
+      <aside id="candidates-region" class="candidates-region" aria-labelledby="candidates-heading">
+        <header class="candidates-header">
+          <h2 id="candidates-heading" class="candidates-title">
+            Candidates [<span id="candidates-count">0</span>]
+          </h2>
+          <div class="candidates-toolbar">
+            <label for="candidates-filter-input" class="sr-only">Filter candidates by title</label>
+            <input
+              type="search"
+              id="candidates-filter-input"
+              class="ide-input ide-input-compact"
+              placeholder="Filter candidates..."
+              autocomplete="off"
+            >
+            <button type="button" id="clear-candidates-btn" class="ide-btn ide-btn-compact" title="Remove all unranked candidates">
+              Clear
+            </button>
+          </div>
+        </header>
+
+        <div id="candidates-dropzone" class="candidates-dropzone" data-drop-zone="candidates">
+          <ul id="candidates-list" class="poster-collection" aria-label="Candidate game posters"></ul>
+          <p id="candidates-empty-msg" class="empty-state-msg">
+            Candidate pool is empty. Search titles via IGDB, import a Steam Community profile, or click Load Defaults.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="row-editor-dialog" class="ide-modal" aria-labelledby="row-modal-title">
+    <form id="row-editor-form" class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="row-modal-title" class="modal-title">Edit Tier Row</h2>
+        <button type="button" id="close-row-modal-btn" class="ide-btn ide-btn-compact">Close [Esc]</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="form-row">
+          <label for="row-name-input" class="form-label">Row Name</label>
+          <input
+            type="text"
+            id="row-name-input"
+            class="ide-input"
+            maxlength="40"
+            required
+            placeholder="e.g. A, Leitmotif Mastery, Ambient..."
+          >
+        </div>
+
+        <fieldset class="form-fieldset">
+          <legend class="form-label">Row Matte Color</legend>
+          <div class="color-picker-group">
+            <label for="row-color-input" class="color-hex-label">Custom Hex:</label>
+            <input type="color" id="row-color-input" class="ide-color-input" value="#b8644f">
+            <span id="row-color-hex" class="mono-readout">#b8644f</span>
+          </div>
+          <div id="matte-swatches" class="swatch-grid" role="group" aria-label="Preset matte colors"></div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+          <legend class="form-label">Row Icon (Optional)</legend>
+          <div class="form-row">
+            <label for="row-icon-preset" class="sub-label">Preset Placeholder Slot</label>
+            <select id="row-icon-preset" class="ide-select"></select>
+          </div>
+
+          <div class="form-row">
+            <label for="row-icon-url" class="sub-label">Or Custom Icon URL / Path</label>
+            <input
+              type="text"
+              id="row-icon-url"
+              class="ide-input"
+              placeholder="placeholders/icon-score.png or https://..."
+            >
+          </div>
+
+          <div class="form-row">
+            <label for="row-icon-file" class="sub-label">Or Local Image File</label>
+            <input type="file" id="row-icon-file" class="ide-file-input" accept="image/*">
+          </div>
+
+          <div class="icon-preview-bar">
+            <span class="sub-label">Preview:</span>
+            <img id="row-icon-preview" class="row-icon-preview-img" src="" alt="Selected row icon preview" hidden>
+            <span id="row-icon-none" class="muted-note">No icon assigned</span>
+            <button type="button" id="clear-row-icon-btn" class="ide-btn ide-btn-compact">Clear Icon</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" id="cancel-row-modal-btn" class="ide-btn">Cancel</button>
+        <button type="submit" id="save-row-modal-btn" class="ide-btn ide-btn-primary">Apply Row Settings</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="storage-dialog" class="ide-modal ide-modal-wide" aria-labelledby="storage-modal-title">
+    <div class="modal-form">
+      <header class="modal-header">
+        <h2 id="storage-modal-title" class="modal-title">Saved Tier Lists (localStorage)</h2>
+        <button type="button" id="close-storage-modal-btn" class="ide-btn ide-btn-compact">Close [Esc]</button>
+      </header>
+
+      <div class="modal-body">
+        <form id="save-copy-form" class="save-copy-bar">
+          <label for="save-as-name-input" class="sub-label">Save current workspace as new slot:</label>
+          <div class="tool-form">
+            <input
+              type="text"
+              id="save-as-name-input"
+              class="ide-input"
+              maxlength="120"
+              placeholder="Enter tier list slot title..."
+              required
+            >
+            <button type="submit" class="ide-btn ide-btn-primary">Save New Slot</button>
+          </div>
+        </form>
+
+        <div id="saved-lists-container" class="saved-lists-container">
+          <ul id="saved-lists-ul" class="saved-lists-ul" aria-label="Saved tier lists"></ul>
+          <p id="saved-lists-empty" class="empty-state-msg">
+            No tier lists stored in localStorage yet. Submit Save List in the toolbar or Save New Slot above.
+          </p>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" id="done-storage-modal-btn" class="ide-btn">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <footer class="ide-statusbar" aria-label="Editor status bar">
+    <div class="status-segment">
+      <span id="status-message">Ready // Default A-F template initialized</span>
+    </div>
+    <div class="status-segment status-metrics">
+      <span>Layout: <strong id="status-orientation">VERTICAL</strong></span>
+      <span>Tiers: <strong id="status-tier-count">6</strong></span>
+      <span>Ranked: <strong id="status-ranked-count">0</strong></span>
+      <span>Candidates: <strong id="status-candidate-count">0</strong></span>
+      <span id="status-api-keys">API: Placeholders</span>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
