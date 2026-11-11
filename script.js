@@ -314,7 +314,7 @@ function isValidCustomIconUrl(rawUrl) {
   ) {
     return false;
   }
-  if (!/\.(?:png|jpe?g|gif|webp|avif|bmp|ico)$/i.test(pathname)) {
+  if (!/\.(?:png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i.test(pathname)) {
     return false;
   }
   return true;
@@ -1129,6 +1129,15 @@ function setTierModalColor(hex) {
   }
 }
 
+let iconUrlDebounceTimer = null;
+
+function clearIconUrlDebounce() {
+  if (iconUrlDebounceTimer !== null && typeof clearTimeout === "function") {
+    clearTimeout(iconUrlDebounceTimer);
+  }
+  iconUrlDebounceTimer = null;
+}
+
 function updateTierModalIconPreview(iconValue) {
   const trimmed = String(iconValue || "").trim();
   if (!trimmed) {
@@ -1181,6 +1190,7 @@ function updateTierModalIconPreview(iconValue) {
 
 function openTierEditorModal(tierId) {
   const workspace = getActiveWorkspace();
+  clearIconUrlDebounce();
   dom.tierIconFile.value = "";
   if (tierId === null) {
     state.isCreatingTier = true;
@@ -1209,8 +1219,10 @@ function openTierEditorModal(tierId) {
     setTierModalColor(tier.color);
 
     const matchingPreset = getPresetByValue(tier.icon);
+    const isDataUri = Boolean(tier.icon && tier.icon.indexOf("data:") === 0);
+    const isFallbackPlaceholder = tier.icon === PLACEHOLDER_IMAGE_SRC;
     dom.tierIconPreset.value = matchingPreset ? matchingPreset.value : "";
-    dom.tierIconUrl.value = matchingPreset ? "" : (tier.icon || "");
+    dom.tierIconUrl.value = (matchingPreset || isDataUri || isFallbackPlaceholder) ? "" : (tier.icon || "");
     updateTierModalIconPreview(state.modalIconValue);
   }
 
@@ -1221,17 +1233,14 @@ function openTierEditorModal(tierId) {
 
 function handleSaveTierModal(event) {
   event.preventDefault();
+  if (iconUrlDebounceTimer !== null) {
+    clearIconUrlDebounce();
+    updateTierModalIconPreview(state.modalIconValue);
+  }
   const workspace = getActiveWorkspace();
   const name = dom.tierNameInput.value.trim() || "Untitled";
   const color = dom.tierColorInput.value || "#7d6891";
-  let iconValue = sanitizeTierIconValue(state.modalIconValue);
-  if (
-    iconValue &&
-    !extractSymbolLigature(iconValue) &&
-    dom.tierIconPreview.getAttribute("src") === PLACEHOLDER_IMAGE_SRC
-  ) {
-    iconValue = PLACEHOLDER_IMAGE_SRC;
-  }
+  const iconValue = sanitizeTierIconValue(state.modalIconValue);
 
   const matchingPreset = getPresetByValue(iconValue);
   const iconAlt = iconValue
@@ -1424,8 +1433,8 @@ async function queryCheapSharkGames(searchTerm) {
         name: title,
         year: formattedDate,
         releaseDate: formattedDate,
-        imageUrl: item.thumb || urls.secondary,
-        backupUrl: urls.secondary,
+        imageUrl: urls.primary,
+        backupUrl: item.thumb || urls.secondary,
         source: "cheapshark"
       };
     }
@@ -2132,6 +2141,7 @@ function bindEvents() {
   });
 
   dom.tierIconPreset.addEventListener("change", function onPresetIconChange() {
+    clearIconUrlDebounce();
     state.modalIconValue = dom.tierIconPreset.value;
     dom.tierIconUrl.value = "";
     dom.tierIconFile.value = "";
@@ -2139,12 +2149,54 @@ function bindEvents() {
   });
 
   dom.tierIconUrl.addEventListener("input", function onCustomIconUrl() {
+    clearIconUrlDebounce();
     const val = dom.tierIconUrl.value.trim();
-    state.modalIconValue = val;
     const matching = getPresetByValue(val);
     dom.tierIconPreset.value = matching ? matching.value : "";
     dom.tierIconFile.value = "";
-    updateTierModalIconPreview(state.modalIconValue);
+
+    if (!val) {
+      state.modalIconValue = "";
+      updateTierModalIconPreview("");
+      return;
+    }
+
+    if (extractSymbolLigature(val) || val === PLACEHOLDER_IMAGE_SRC || val.indexOf("data:") === 0) {
+      state.modalIconValue = val;
+      updateTierModalIconPreview(val);
+      return;
+    }
+
+    if (!isValidCustomIconUrl(val)) {
+      state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
+      updateTierModalIconPreview(PLACEHOLDER_IMAGE_SRC);
+      return;
+    }
+
+    state.modalIconValue = val;
+    dom.tierIconNone.hidden = true;
+    dom.tierIconPreviewSymbol.hidden = true;
+    dom.tierIconPreviewSymbol.textContent = "";
+    dom.tierIconPreview.hidden = false;
+    if (dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+      dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
+    }
+
+    if (typeof setTimeout === "function") {
+      iconUrlDebounceTimer = setTimeout(function onDebouncedIconPreview() {
+        iconUrlDebounceTimer = null;
+        updateTierModalIconPreview(state.modalIconValue);
+      }, 280);
+    } else {
+      updateTierModalIconPreview(state.modalIconValue);
+    }
+  });
+
+  dom.tierIconUrl.addEventListener("change", function onCustomIconUrlCommit() {
+    if (iconUrlDebounceTimer !== null) {
+      clearIconUrlDebounce();
+      updateTierModalIconPreview(state.modalIconValue);
+    }
   });
 
   dom.tierIconFile.addEventListener("change", function onIconFileSelected() {
@@ -2192,6 +2244,7 @@ function bindEvents() {
   });
 
   dom.clearTierIconBtn.addEventListener("click", function onClearIcon() {
+    clearIconUrlDebounce();
     state.modalIconValue = "";
     dom.tierIconPreset.value = "";
     dom.tierIconUrl.value = "";
