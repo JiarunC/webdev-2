@@ -51,7 +51,7 @@ function createDefaultTiers() {
 
 function gameCoverUrls(appId) {
   return {
-    primary: "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/" + appId + "/library_600x900.jpg",
+    primary: "https://cdn.cloudflare.steamstatic.com/steam/apps/" + appId + "/library_600x900.jpg",
     secondary: "https://cdn.cloudflare.steamstatic.com/steam/apps/" + appId + "/header.jpg"
   };
 }
@@ -285,22 +285,118 @@ function getContrastInk(hexColor) {
 }
 
 const PLACEHOLDER_IMAGE_SRC = "placeholder.png";
+const failedImageUrls = new Set();
+
+function isValidCustomIconUrl(rawUrl) {
+  const trimmed = String(rawUrl || "").trim();
+  if (!trimmed || failedImageUrls.has(trimmed)) {
+    return false;
+  }
+  if (trimmed === PLACEHOLDER_IMAGE_SRC) {
+    return true;
+  }
+  if (trimmed.indexOf("data:") === 0) {
+    return /^data:image\/(?:png|jpe?g|gif|webp|bmp|ico|avif);base64,[a-z0-9+/=]+$/i.test(trimmed);
+  }
+  const match = trimmed.match(
+    /^https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})(?::\d+)?(\/[^\s?#]*)(?:\?[^\s#]*)?(?:#[^\s]*)?$/i
+  );
+  if (!match) {
+    return false;
+  }
+  const host = match[1].toLowerCase();
+  const pathname = match[2];
+  if (
+    host === "example.com" ||
+    host === "example.org" ||
+    host === "example.net" ||
+    /\.example$|\.invalid$|\.test$/i.test(host)
+  ) {
+    return false;
+  }
+  if (!/\.(?:png|jpe?g|gif|webp|avif|bmp|ico)$/i.test(pathname)) {
+    return false;
+  }
+  return true;
+}
+
+function isValidPosterSource(rawUrl) {
+  const trimmed = String(rawUrl || "").trim();
+  if (!trimmed || failedImageUrls.has(trimmed)) {
+    return false;
+  }
+  if (trimmed === PLACEHOLDER_IMAGE_SRC) {
+    return true;
+  }
+  if (trimmed.indexOf("data:") === 0) {
+    return /^data:image\/(?:png|jpe?g|gif|webp|bmp|ico|avif);base64,[a-z0-9+/=]+$/i.test(trimmed);
+  }
+  const match = trimmed.match(
+    /^https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})(?::\d+)?(?:\/[^\s]*)?$/i
+  );
+  if (!match) {
+    return false;
+  }
+  const host = match[1].toLowerCase();
+  if (
+    host === "example.com" ||
+    host === "example.org" ||
+    host === "example.net" ||
+    /\.example$|\.invalid$|\.test$/i.test(host)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function sanitizeTierIconValue(rawIconValue) {
+  const trimmed = String(rawIconValue || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (extractSymbolLigature(trimmed)) {
+    return trimmed;
+  }
+  if (!isValidCustomIconUrl(trimmed)) {
+    return PLACEHOLDER_IMAGE_SRC;
+  }
+  return trimmed;
+}
 
 function attachPosterFallbacks(imgEl, item) {
+  if (!isValidPosterSource(item.imageUrl)) {
+    if (item.backupUrl && isValidPosterSource(item.backupUrl)) {
+      item.imageUrl = item.backupUrl;
+      item.backupUrl = "";
+    } else {
+      item.imageUrl = PLACEHOLDER_IMAGE_SRC;
+      item.backupUrl = "";
+    }
+  }
+
   let stage = 0;
   function handlePosterError() {
+    const failedSrc = imgEl.getAttribute("src") || item.imageUrl || "";
+    if (failedSrc && failedSrc !== PLACEHOLDER_IMAGE_SRC) {
+      failedImageUrls.add(failedSrc);
+    }
     if (
       stage === 0 &&
       item.backupUrl &&
+      isValidPosterSource(item.backupUrl) &&
       imgEl.getAttribute("src") !== item.backupUrl &&
       imgEl.src !== item.backupUrl
     ) {
       stage = 1;
-      imgEl.src = item.backupUrl;
+      item.imageUrl = item.backupUrl;
+      item.backupUrl = "";
+      imgEl.src = item.imageUrl;
       return;
     }
     if (stage <= 1) {
       stage = 2;
+      item.imageUrl = PLACEHOLDER_IMAGE_SRC;
+      item.backupUrl = "";
       if (imgEl.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
         imgEl.src = PLACEHOLDER_IMAGE_SRC;
       }
@@ -324,9 +420,25 @@ function extractSymbolLigature(iconValue) {
   return "";
 }
 
+function replaceBrokenTierIconsInState(brokenUrl) {
+  if (!brokenUrl) {
+    return;
+  }
+  const modes = ["games", "movies"];
+  for (let m = 0; m < modes.length; m += 1) {
+    const ws = state.workspaces[modes[m]];
+    for (let t = 0; t < ws.tiers.length; t += 1) {
+      if (ws.tiers[t].icon === brokenUrl) {
+        ws.tiers[t].icon = PLACEHOLDER_IMAGE_SRC;
+      }
+    }
+  }
+}
+
 function applyTierIconSource(imgEl, rawIconUrl) {
   const targetUrl = String(rawIconUrl || "").trim();
-  if (!targetUrl) {
+  if (!targetUrl || !isValidCustomIconUrl(targetUrl)) {
+    replaceBrokenTierIconsInState(targetUrl);
     imgEl.src = PLACEHOLDER_IMAGE_SRC;
     return;
   }
@@ -337,6 +449,8 @@ function applyTierIconSource(imgEl, rawIconUrl) {
       return;
     }
     settled = true;
+    failedImageUrls.add(targetUrl);
+    replaceBrokenTierIconsInState(targetUrl);
     if (imgEl.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
       imgEl.src = PLACEHOLDER_IMAGE_SRC;
     }
@@ -393,19 +507,27 @@ function showToolFeedback(element, message, level) {
 }
 
 function openDialog(dialogEl) {
-  if (typeof dialogEl.showModal === "function") {
-    if (!dialogEl.open) {
-      dialogEl.showModal();
+  try {
+    if (typeof dialogEl.showModal === "function") {
+      if (!dialogEl.open) {
+        dialogEl.showModal();
+      }
+    } else {
+      dialogEl.setAttribute("open", "");
     }
-  } else {
+  } catch (err) {
     dialogEl.setAttribute("open", "");
   }
 }
 
 function closeDialog(dialogEl) {
-  if (typeof dialogEl.close === "function" && dialogEl.open) {
-    dialogEl.close();
-  } else {
+  try {
+    if (typeof dialogEl.close === "function" && dialogEl.open) {
+      dialogEl.close();
+    } else {
+      dialogEl.removeAttribute("open");
+    }
+  } catch (err) {
     dialogEl.removeAttribute("open");
   }
 }
@@ -696,7 +818,9 @@ function bindDropZoneEvents(zoneEl, destinationType, tierId) {
   });
 
   zoneEl.addEventListener("dragleave", function handleZoneDragLeave(event) {
-    if (!zoneEl.contains(event.relatedTarget)) {
+    const related = event.relatedTarget;
+    const isDomNode = typeof Node !== "undefined" ? related instanceof Node : Boolean(related);
+    if (!related || !isDomNode || !zoneEl.contains(related)) {
       zoneEl.classList.remove("is-drag-over");
     }
   });
@@ -1033,6 +1157,15 @@ function updateTierModalIconPreview(iconValue) {
   dom.tierIconPreviewSymbol.hidden = true;
   dom.tierIconPreviewSymbol.textContent = "";
   dom.tierIconPreview.hidden = false;
+
+  if (!isValidCustomIconUrl(trimmed)) {
+    state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
+    if (dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
+      dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
+    }
+    return;
+  }
+
   dom.tierIconPreview.src = trimmed;
 
   if (
@@ -1040,6 +1173,8 @@ function updateTierModalIconPreview(iconValue) {
     dom.tierIconPreview.naturalWidth === 0 &&
     dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC
   ) {
+    failedImageUrls.add(trimmed);
+    state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
     dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
   }
 }
@@ -1065,6 +1200,7 @@ function openTierEditorModal(tierId) {
     if (!tier) {
       return;
     }
+    tier.icon = sanitizeTierIconValue(tier.icon);
     state.isCreatingTier = false;
     state.editingTierId = tier.id;
     state.modalIconValue = tier.icon || "";
@@ -1088,7 +1224,14 @@ function handleSaveTierModal(event) {
   const workspace = getActiveWorkspace();
   const name = dom.tierNameInput.value.trim() || "Untitled";
   const color = dom.tierColorInput.value || "#7d6891";
-  const iconValue = String(state.modalIconValue || "").trim();
+  let iconValue = sanitizeTierIconValue(state.modalIconValue);
+  if (
+    iconValue &&
+    !extractSymbolLigature(iconValue) &&
+    dom.tierIconPreview.getAttribute("src") === PLACEHOLDER_IMAGE_SRC
+  ) {
+    iconValue = PLACEHOLDER_IMAGE_SRC;
+  }
 
   const matchingPreset = getPresetByValue(iconValue);
   const iconAlt = iconValue
@@ -1281,8 +1424,8 @@ async function queryCheapSharkGames(searchTerm) {
         name: title,
         year: formattedDate,
         releaseDate: formattedDate,
-        imageUrl: urls.primary,
-        backupUrl: item.thumb || urls.secondary,
+        imageUrl: item.thumb || urls.secondary,
+        backupUrl: urls.secondary,
         source: "cheapshark"
       };
     }
@@ -1684,7 +1827,7 @@ function loadSavedTierListById(slotId) {
           id: tier.id || makeId("tier"),
           name: String(tier.name || "Tier"),
           color: tier.color || "#7d6891",
-          icon: tier.icon || "",
+          icon: sanitizeTierIconValue(tier.icon),
           iconAlt: tier.iconAlt || "",
           games: sanitizeItemsForMode(tier.games, slotMode)
         };
@@ -2009,6 +2152,13 @@ function bindEvents() {
     if (!file) {
       return;
     }
+    if (file.type && file.type.indexOf("image/") !== 0) {
+      state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
+      dom.tierIconPreset.value = "";
+      dom.tierIconUrl.value = "";
+      updateTierModalIconPreview(PLACEHOLDER_IMAGE_SRC);
+      return;
+    }
     const reader = new FileReader();
     reader.addEventListener("load", function onFileRead() {
       if (typeof reader.result === "string") {
@@ -2018,6 +2168,12 @@ function bindEvents() {
         updateTierModalIconPreview(state.modalIconValue);
       }
     });
+    reader.addEventListener("error", function onFileReadError() {
+      state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
+      dom.tierIconPreset.value = "";
+      dom.tierIconUrl.value = "";
+      updateTierModalIconPreview(PLACEHOLDER_IMAGE_SRC);
+    });
     reader.readAsDataURL(file);
   });
 
@@ -2025,6 +2181,11 @@ function bindEvents() {
     if (dom.tierIconPreview.hidden || !state.modalIconValue || extractSymbolLigature(state.modalIconValue)) {
       return;
     }
+    const brokenSrc = dom.tierIconPreview.getAttribute("src") || state.modalIconValue;
+    if (brokenSrc && brokenSrc !== PLACEHOLDER_IMAGE_SRC) {
+      failedImageUrls.add(brokenSrc);
+    }
+    state.modalIconValue = PLACEHOLDER_IMAGE_SRC;
     if (dom.tierIconPreview.getAttribute("src") !== PLACEHOLDER_IMAGE_SRC) {
       dom.tierIconPreview.src = PLACEHOLDER_IMAGE_SRC;
     }

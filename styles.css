@@ -11,7 +11,7 @@
   --color-text-muted: #b5b2aa;
 
   --color-accent: #d48834;
-  --color-accent-alt: #c9a24b;
+  --color-accent-alt: #f3a768;
   --color-accent-ink: #1b191c;
 
   --border-subtle: #434057;
@@ -51,12 +51,12 @@
   --border-strong: #a2a787;
   --border-focus: #0366d7;
 
-  --status-warn-bg: #c7ced9;
-  --status-warn-border: #477cca;
-  --status-err-bg: #c5d8d4;
-  --status-err-border: #4aa5a5;
-  --status-ok-bg: #d9ccd2;
-  --status-ok-border: #a3738c;
+  --status-warn-bg: #ddd2be;
+  --status-warn-border: #9e6c24;
+  --status-err-bg: #dbc5c7;
+  --status-err-border: #9e4244;
+  --status-ok-bg: #c6d6cb;
+  --status-ok-border: #3d7a57;
 
   --backdrop-dim: rgba(239, 240, 237, 0.78);
 }
@@ -74,18 +74,12 @@
 
 /* IDE Scrollbars */
 *::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
-}
-
-*::-webkit-scrollbar-track {
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
+  width: 7px;
+  height: 7px;
 }
 
 *::-webkit-scrollbar-thumb {
   background-color: var(--border-strong);
-  border: 2px solid var(--bg-tertiary);
   border-radius: 0;
 }
 
@@ -558,7 +552,7 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 .ide-workspace[data-orientation="horizontal"] .board-split {
-  grid-template-columns: minmax(0, 1fr) 370px;
+  grid-template-columns: minmax(0, 1fr) 324px;
   align-items: start;
 }
 
@@ -783,6 +777,13 @@ input[type="search"]::-webkit-search-results-decoration {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-content: flex-start;
+}
+
+.ide-workspace[data-orientation="horizontal"] .candidates-dropzone .poster-collection {
+  display: grid;
+  grid-template-columns: repeat(3, 86px);
+  justify-content: center;
+  gap: 0.6rem 0.65rem;
 }
 
 .ide-workspace[data-orientation="vertical"] .tier-dropzone {
@@ -1224,5 +1225,11 @@ input[type="file"]::-webkit-file-upload-button:hover {
   .ide-workspace[data-orientation="horizontal"] .candidates-region {
     position: static;
     max-height: none;
+  }
+
+  .ide-workspace[data-orientation="horizontal"] .candidates-dropzone .poster-collection {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.5rem;
   }
 }
